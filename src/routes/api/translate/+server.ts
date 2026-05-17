@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
-import { PrismaClient } from '@prisma/client';
+import { db } from '$lib/server/db';
+import { translationCache, settings } from '$lib/server/schema';
+import { and, eq } from 'drizzle-orm';
 import { GoogleGenAI } from '@google/genai';
-
-const prisma = new PrismaClient();
 
 export async function POST({ request }) {
     const { html, targetLanguage, model } = await request.json();
@@ -13,12 +13,12 @@ export async function POST({ request }) {
 
     try {
         // Check cache first
-        const cached = await prisma.translationCache.findFirst({
-            where: {
-                originalHtml: html,
-                targetLanguage: targetLanguage,
-                model: model || 'gemini-2.5-flash'
-            }
+        const cached = await db.query.translationCache.findFirst({
+            where: and(
+                eq(translationCache.originalHtml, html),
+                eq(translationCache.targetLanguage, targetLanguage),
+                eq(translationCache.model, model || 'gemini-2.5-flash')
+            )
         });
 
         if (cached) {
@@ -28,7 +28,7 @@ export async function POST({ request }) {
             });
         }
 
-        const settings = await prisma.settings.findUnique({ where: { id: 'default' } });
+        const currentSettings = await db.query.settings.findFirst({ where: eq(settings.id, 'default') });
 
         const prompt = `You are an expert bilingual e-book translator. 
 Target Language: ${targetLanguage}
@@ -48,17 +48,17 @@ ${html}`;
         if (model?.startsWith('custom:')) {
             const actualModel = model.replace('custom:', '');
             
-            if (!settings || !settings.openaiBaseUrl || !settings.openaiKey) {
+            if (!currentSettings || !currentSettings.openaiBaseUrl || (!currentSettings.openaiKey && (!currentSettings.openaiKeys || currentSettings.openaiKeys.length === 0))) {
                 return json({ error: 'Custom OpenAI settings are missing.' }, { status: 400 });
             }
 
-            const url = settings.openaiBaseUrl.endsWith('/') 
-                ? `${settings.openaiBaseUrl}chat/completions` 
-                : `${settings.openaiBaseUrl}/chat/completions`;
+            const url = currentSettings.openaiBaseUrl.endsWith('/')
+                ? `${currentSettings.openaiBaseUrl}chat/completions`
+                : `${currentSettings.openaiBaseUrl}/chat/completions`;
 
-            const keys = settings.openaiKeys && settings.openaiKeys.length > 0
-                ? settings.openaiKeys.filter(k => k.trim() !== '')
-                : [settings.openaiKey];
+            const keys = currentSettings.openaiKeys && currentSettings.openaiKeys.length > 0
+                ? currentSettings.openaiKeys.filter(k => k && k.trim() !== '')
+                : (currentSettings.openaiKey ? [currentSettings.openaiKey] : []);
 
             if (keys.length === 0 || !keys[0]) {
                  return json({ error: 'No API keys configured.' }, { status: 400 });
@@ -143,13 +143,11 @@ ${html}`;
         }
 
         // Cache the result
-        await prisma.translationCache.create({
-            data: {
-                originalHtml,
-                translatedHtml,
-                targetLanguage,
-                model: model || 'gemini-2.5-flash'
-            }
+        await db.insert(translationCache).values({
+            originalHtml,
+            translatedHtml,
+            targetLanguage,
+            model: model || 'gemini-2.5-flash'
         });
 
         return json({ originalHtml, translatedHtml });

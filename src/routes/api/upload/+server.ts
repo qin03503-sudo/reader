@@ -1,11 +1,11 @@
 import { json } from '@sveltejs/kit';
-import { PrismaClient } from '@prisma/client';
+import { db } from '$lib/server/db';
+import { book, chapter } from '$lib/server/schema';
 import fs from 'fs';
 import path from 'path';
 import { parseEpub } from '$lib/server/epub';
 import { v4 as uuidv4 } from 'uuid';
-
-const prisma = new PrismaClient();
+import { desc } from 'drizzle-orm';
 
 // Ensure uploads directory exists
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
@@ -34,25 +34,31 @@ export async function POST({ request }) {
         fs.writeFileSync(localPath, buffer);
 
         // Save to Database
-        const book = await prisma.book.create({
-            data: {
+        let newBookWithChapters;
+
+        await db.transaction(async (tx) => {
+            const [newBook] = await tx.insert(book).values({
                 title: parsed.metadata.title,
                 author: parsed.metadata.author,
                 coverUrl: parsed.metadata.coverUrl,
                 localPath: fileName,
-                chapters: {
-                    create: parsed.chapters.map(ch => ({
-                        href: ch.href,
-                        title: ch.title
-                    }))
-                }
-            },
-            include: {
-                chapters: true
+            }).returning();
+
+            const chaptersToInsert = parsed.chapters.map(ch => ({
+                href: ch.href,
+                title: ch.title,
+                bookId: newBook.id
+            }));
+
+            let insertedChapters: any[] = [];
+            if (chaptersToInsert.length > 0) {
+                insertedChapters = await tx.insert(chapter).values(chaptersToInsert).returning();
             }
+
+            newBookWithChapters = { ...newBook, chapters: insertedChapters };
         });
 
-        return json({ success: true, book });
+        return json({ success: true, book: newBookWithChapters });
     } catch (error: any) {
         console.error("Upload error:", error);
         return json({ error: error.message || 'Upload failed' }, { status: 500 });
@@ -61,9 +67,9 @@ export async function POST({ request }) {
 
 export async function GET() {
     try {
-        const books = await prisma.book.findMany({
-            include: { chapters: true },
-            orderBy: { createdAt: 'desc' }
+        const books = await db.query.book.findMany({
+            with: { chapters: true },
+            orderBy: [desc(book.createdAt)]
         });
         return json({ books });
     } catch (error: any) {

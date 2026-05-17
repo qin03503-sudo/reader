@@ -7,8 +7,6 @@ RUN npm ci
 
 COPY . .
 
-# Generate Prisma client
-RUN npx prisma generate
 
 RUN npm run build
 
@@ -20,8 +18,6 @@ COPY --from=builder /app/build build/
 COPY --from=builder /app/node_modules node_modules/
 COPY package.json .
 
-# Prisma requirements
-COPY --from=builder /app/prisma prisma/
 
 EXPOSE 3000
 

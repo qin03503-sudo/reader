@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, RefreshCw } from 'lucide-react';
+import { X, Save, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { settingsStore } from '../lib/db';
 import { cn } from '../lib/utils';
 
@@ -11,6 +11,7 @@ interface SettingsModalProps {
 export interface AppSettings {
   openaiBaseUrl: string;
   openaiKey: string;
+  openaiKeys?: string[];
   customModels: { id: string; name: string }[];
 }
 
@@ -20,6 +21,7 @@ export function SettingsModal({ onClose, onSettingsSaved }: SettingsModalProps) 
   const [settings, setSettings] = useState<AppSettings>({
     openaiBaseUrl: 'https://api.openai.com/v1',
     openaiKey: '',
+    openaiKeys: [''],
     customModels: []
   });
   const [message, setMessage] = useState<{ type: 'success'|'error', text: string } | null>(null);
@@ -28,7 +30,10 @@ export function SettingsModal({ onClose, onSettingsSaved }: SettingsModalProps) 
     async function loadSettings() {
       const saved = await settingsStore.getItem<AppSettings>('app_settings');
       if (saved) {
-        setSettings(saved);
+        const openaiKeys = saved.openaiKeys && saved.openaiKeys.length > 0
+          ? saved.openaiKeys
+          : saved.openaiKey ? [saved.openaiKey] : [''];
+        setSettings({ ...saved, openaiKeys });
       }
     }
     loadSettings();
@@ -37,7 +42,15 @@ export function SettingsModal({ onClose, onSettingsSaved }: SettingsModalProps) 
   const handleSave = async () => {
     setLoading(true);
     try {
-      await settingsStore.setItem('app_settings', settings);
+      const validKeys = (settings.openaiKeys || []).filter(k => k.trim() !== '');
+      const finalKeys = validKeys.length > 0 ? validKeys : [''];
+      const toSave = {
+        ...settings,
+        openaiKeys: finalKeys,
+        openaiKey: finalKeys[0]
+      };
+      await settingsStore.setItem('app_settings', toSave);
+      setSettings(toSave);
       setMessage({ type: 'success', text: 'Settings saved successfully.' });
       onSettingsSaved();
       setTimeout(onClose, 1000);
@@ -49,8 +62,10 @@ export function SettingsModal({ onClose, onSettingsSaved }: SettingsModalProps) 
   };
 
   const handleFetchModels = async () => {
-    if (!settings.openaiBaseUrl || !settings.openaiKey) {
-      setMessage({ type: 'error', text: 'Base URL and API Key are required to fetch models.' });
+    const validKeys = (settings.openaiKeys || []).filter(k => k.trim() !== '');
+    const keyToUse = validKeys.length > 0 ? validKeys[0] : settings.openaiKey;
+    if (!settings.openaiBaseUrl || !keyToUse) {
+      setMessage({ type: 'error', text: 'Base URL and at least one API Key are required to fetch models.' });
       return;
     }
 
@@ -64,7 +79,7 @@ export function SettingsModal({ onClose, onSettingsSaved }: SettingsModalProps) 
       // Depending on CORS, this might fail from browser without a proxy if the custom API doesn't support it, but we try anyway since it's a "custom" endpoint often hosted by user with cors enabled or through a local proxy.
       const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${settings.openaiKey}`,
+          'Authorization': `Bearer ${keyToUse}`,
           'Accept': 'application/json'
         }
       });
@@ -89,6 +104,27 @@ export function SettingsModal({ onClose, onSettingsSaved }: SettingsModalProps) 
     } finally {
       setFetchingModels(false);
     }
+  };
+
+  const addApiKey = () => {
+    setSettings(s => ({ ...s, openaiKeys: [...(s.openaiKeys || []), ''] }));
+  };
+
+  const updateApiKey = (index: number, value: string) => {
+    setSettings(s => {
+      const newKeys = [...(s.openaiKeys || [])];
+      newKeys[index] = value;
+      return { ...s, openaiKeys: newKeys };
+    });
+  };
+
+  const removeApiKey = (index: number) => {
+    setSettings(s => {
+      const newKeys = [...(s.openaiKeys || [])];
+      newKeys.splice(index, 1);
+      if (newKeys.length === 0) newKeys.push('');
+      return { ...s, openaiKeys: newKeys };
+    });
   };
 
   return (
@@ -125,15 +161,30 @@ export function SettingsModal({ onClose, onSettingsSaved }: SettingsModalProps) 
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-ink">API Key</label>
-              <input 
-                type="password" 
-                value={settings.openaiKey}
-                onChange={e => setSettings(s => ({...s, openaiKey: e.target.value}))}
-                placeholder="sk-..."
-                className="w-full px-3 py-2 border border-divider rounded-md focus:outline-none focus:border-ink transition-colors text-sm"
-              />
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-ink">API Keys (Load Balanced)</label>
+              <div className="space-y-2">
+                {(settings.openaiKeys || []).map((key, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      type="password"
+                      value={key}
+                      onChange={e => updateApiKey(idx, e.target.value)}
+                      placeholder="sk-..."
+                      className="flex-1 px-3 py-2 border border-divider rounded-md focus:outline-none focus:border-ink transition-colors text-sm"
+                    />
+                    <button onClick={() => removeApiKey(idx)} className="p-2 text-accent hover:text-red-500 transition-colors" title="Remove Key">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={addApiKey}
+                className="flex items-center gap-1 text-sm font-medium text-ink hover:text-black transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Add API Key
+              </button>
             </div>
 
             <div className="pt-2">

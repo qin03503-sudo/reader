@@ -3,6 +3,7 @@ import { settingsStore } from "./db";
 import { AppSettings } from "../components/SettingsModal";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let currentKeyIndex = 0;
 
 const TranslationSchema: Schema = {
   type: Type.OBJECT,
@@ -55,46 +56,69 @@ ${html}`;
          required: ["original_html_with_spans", "translated_html_with_spans"]
       };
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${settings.openaiKey}`
-        },
-        body: JSON.stringify({
-          model: actualModel,
-          messages: [
-            { role: "system", content: "You are an expert translator that precisely aligns HTML sentences." },
-            { role: "user", content: prompt }
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "translation_result",
-              strict: false,
-              schema: jsonSchema
-            }
-          },
-          temperature: 0.1
-        })
-      });
+      const keys = settings.openaiKeys && settings.openaiKeys.length > 0
+        ? settings.openaiKeys.filter(k => k.trim() !== '')
+        : [settings.openaiKey];
 
-      if (!response.ok) {
-        // Fallback for models/endpoints that might not support structured JSON outputs fully
-        // Try again without json_schema if it's an error about json_format?
-        const errText = await response.text();
-        throw new Error(`OpenAI API Error: ${errText}`);
+      if (keys.length === 0 || !keys[0]) {
+        throw new Error('No API keys configured.');
       }
 
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content;
-      if (!content) throw new Error("No response text from custom model");
-      
-      const parsed = JSON.parse(content);
-      return {
-        originalHtml: parsed.original_html_with_spans,
-        translatedHtml: parsed.translated_html_with_spans
-      };
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt < keys.length; attempt++) {
+        const keyToUse = keys[(currentKeyIndex + attempt) % keys.length];
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${keyToUse}`
+            },
+            body: JSON.stringify({
+              model: actualModel,
+              messages: [
+                { role: "system", content: "You are an expert translator that precisely aligns HTML sentences." },
+                { role: "user", content: prompt }
+              ],
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "translation_result",
+                  strict: false,
+                  schema: jsonSchema
+                }
+              },
+              temperature: 0.1
+            })
+          });
+
+          if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`OpenAI API Error: ${errText}`);
+          }
+
+          const data = await response.json();
+          const content = data.choices[0]?.message?.content;
+          if (!content) throw new Error("No response text from custom model");
+
+          const parsed = JSON.parse(content);
+
+          // On success, update currentKeyIndex to the next key to distribute load
+          currentKeyIndex = (currentKeyIndex + attempt + 1) % keys.length;
+
+          return {
+            originalHtml: parsed.original_html_with_spans,
+            translatedHtml: parsed.translated_html_with_spans
+          };
+        } catch (e: any) {
+          lastError = e;
+          console.warn(`Attempt failed with key ${keyToUse.substring(0, 8)}...:`, e.message);
+          // Loop continues to try the next key
+        }
+      }
+
+      throw lastError || new Error("All API keys failed.");
 
     } else {
       // Standard Gemini

@@ -1,26 +1,25 @@
-FROM node:22-alpine AS builder
+FROM oven/bun:latest AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm ci
+COPY package*.json bun.lock ./
+RUN bun install
 
 COPY . .
 
+# Run DB Migrations (if applicable) and build SvelteKit
+RUN bun run build
 
-RUN npm run build
-
-FROM node:22-alpine
+FROM oven/bun:1-slim AS runner
 
 WORKDIR /app
 
+# Copy ONLY the build folder and package.json
 COPY --from=builder /app/build build/
-COPY --from=builder /app/node_modules node_modules/
 COPY package.json .
-
 
 EXPOSE 3000
 
 ENV NODE_ENV=production
 
-CMD ["node", "build"]
+CMD ["bun", "./build/index.js"]

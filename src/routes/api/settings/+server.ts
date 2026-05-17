@@ -25,12 +25,14 @@ export async function POST({ request }) {
         const [updatedSettings] = await db.insert(settings).values({
             id: 'default',
             openaiBaseUrl: body.openaiBaseUrl,
-            openaiKeys: body.openaiKeys || []
+            openaiKeys: body.openaiKeys || [],
+            openRouterKey: body.openRouterKey
         }).onConflictDoUpdate({
             target: settings.id,
             set: {
                 openaiBaseUrl: body.openaiBaseUrl,
-                openaiKeys: body.openaiKeys
+                openaiKeys: body.openaiKeys,
+                openRouterKey: body.openRouterKey
             }
         }).returning();
 

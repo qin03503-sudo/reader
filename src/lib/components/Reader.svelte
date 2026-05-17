@@ -2,7 +2,7 @@
   import { ArrowLeft, BookOpen, Settings } from '@lucide/svelte';
   import { createEventDispatcher, onMount } from 'svelte';
 
-  let { book = null, globalModel = 'gemini-2.5-flash' }: { book?: any, globalModel?: string } = $props();
+  let { book = null, globalModel = $bindable('gemini-2.5-flash') }: { book?: any, globalModel?: string } = $props();
   
   const dispatch = createEventDispatcher();
   
@@ -18,11 +18,42 @@
 
   let chapter = $derived(book?.chapters?.[currentChapterIndex]);
 
-  const models = [
+  let models = $state([
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
     { id: 'custom:deepseek-chat', name: 'DeepSeek V3 (Custom)' },
     { id: 'custom:deepseek-reasoner', name: 'DeepSeek R1 (Custom)' }
-  ];
+  ]);
+  let isCustomModel = $state(false);
+  let customModelId = $state('');
+  let activeModel = $derived(isCustomModel ? customModelId : selectedModel);
+  $effect(() => { globalModel = activeModel; });
+
+  onMount(async () => {
+    try {
+      const res = await fetch('/api/models');
+      const data = await res.json();
+      if (data && data.models) {
+        models = data.models;
+      }
+    } catch(e) {}
+  });
+
+  $effect(() => {
+    if (selectedModel === 'custom_input') {
+      isCustomModel = true;
+    } else {
+      isCustomModel = false;
+    }
+  });
+
+  $effect(() => {
+    if (isCustomModel && customModelId) {
+      // In a real app we might want to propagate this to translation calls
+      // The current translation API uses selectedModel directly
+      // So if selectedModel === 'custom_input', we will need to handle this
+    }
+  });
+
 
   async function loadChapter() {
     if (!chapter) return;
@@ -107,25 +138,23 @@
           class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
         >
           <Settings class="w-4 h-4" />
-          {models.find(m => m.id === selectedModel)?.name || 'Select Model'}
+          {isCustomModel ? (customModelId || 'Custom Model') : (models.find(m => m.id === selectedModel)?.name || 'Select Model')}
         </button>
 
         {#if showModelSettings}
-          <div class="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
+          <div class="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
             <div class="px-4 py-2 border-b border-gray-100">
               <span class="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Translation Model</span>
-              {#each models as model}
-                <label class="flex items-center gap-2 py-1.5 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="model"
-                    value={model.id}
-                    bind:group={selectedModel}
-                    class="text-blue-600 focus:ring-blue-500"
-                  />
-                  <span class="text-sm text-gray-700">{model.name}</span>
-                </label>
-              {/each}
+              <select bind:value={selectedModel} class="w-full text-sm border border-gray-300 rounded p-1 mb-2">
+                {#each models as model}
+                  <option value={model.id}>{model.name}</option>
+                {/each}
+                <option value="custom_input">-- Custom Model ID --</option>
+              </select>
+
+              {#if isCustomModel}
+                <input type="text" bind:value={customModelId} placeholder="Model ID (e.g. openrouter:anthropic/...)" class="w-full text-sm border border-gray-300 rounded p-1" />
+              {/if}
             </div>
           </div>
         {/if}

@@ -9,7 +9,8 @@
   let settings = $state({
     openaiKey: '',
     openaiBaseUrl: '',
-    openaiKeys: [] as string[]
+    openaiKeys: [] as string[],
+    openRouterKey: ''
   });
   let saving = $state(false);
 
@@ -99,6 +100,20 @@
             <button type="button" onclick={addKey} class="text-blue-500 text-sm mt-1">
                 + Add another key
             </button>
+        </div>
+
+
+        <div class="pt-4 border-t border-gray-100">
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="openRouterKey">
+            OpenRouter API Key
+          </label>
+          <input
+            id="openRouterKey"
+            type="password"
+            bind:value={settings.openRouterKey}
+            placeholder="sk-or-v1-..."
+            class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+          />
         </div>
 
         <div class="pt-4 flex justify-end gap-3">

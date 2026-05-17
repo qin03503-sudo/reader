@@ -2,7 +2,7 @@
   import { BookOpen, Upload, Trash2, Settings as SettingsIcon } from '@lucide/svelte';
   import { createEventDispatcher, onMount } from 'svelte';
   
-  let { globalModel = 'gemini-2.5-flash', books = [] }: { globalModel?: string, books?: any[] } = $props();
+  let { globalModel = $bindable('gemini-2.5-flash'), books = [] }: { globalModel?: string, books?: any[] } = $props();
   
   const dispatch = createEventDispatcher();
   

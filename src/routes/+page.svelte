@@ -20,14 +20,14 @@
   </div>
 {:else if !book}
   <Library 
-    {globalModel} 
+    bind:globalModel
     on:openBook={(e) => book = e.detail} 
     on:openSettings={() => showSettings = true}
   />
 {:else}
   <Reader 
     {book} 
-    {globalModel} 
+    bind:globalModel
     on:close={() => book = null} 
   />
 {/if}

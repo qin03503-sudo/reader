@@ -40,7 +40,9 @@ Task:
 Use a simple numeric index 1, 2, 3... for the data-sync-id. The sync IDs must perfectly match between the original and translated versions so they can be highlighted together.
 
 HTML Block:
-${html}`;
+${html}
+
+Respond ONLY with valid JSON containing keys \"original_html_with_spans\" and \"translated_html_with_spans\". Do not include any other text.`;
 
         let originalHtml = html;
         let translatedHtml = '';
@@ -108,6 +110,58 @@ ${html}`;
             const parsed = JSON.parse(content);
             originalHtml = parsed.original_html_with_spans;
             translatedHtml = parsed.translated_html_with_spans;
+
+
+        } else if (model?.startsWith('openrouter:')) {
+            const actualModel = model.replace('openrouter:', '');
+
+            if (!currentSettings || !currentSettings.openRouterKey) {
+                return json({ error: 'OpenRouter API key is missing.' }, { status: 400 });
+            }
+
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${currentSettings.openRouterKey}`
+                },
+                body: JSON.stringify({
+                    model: actualModel,
+                    messages: [
+                        { role: "system", content: "You are an expert translator that precisely aligns HTML sentences." },
+                        { role: "user", content: prompt }
+                    ],
+                    response_format: {
+                        type: "json_object"
+                    },
+                    temperature: 0.1
+                })
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`OpenRouter API Error: ${errText}`);
+            }
+
+            const data = await response.json();
+            const content = data.choices[0]?.message?.content;
+            if (!content) throw new Error("No response text from OpenRouter model");
+
+            try {
+                const parsed = JSON.parse(content);
+                originalHtml = parsed.original_html_with_spans || parsed.originalHtml;
+                translatedHtml = parsed.translated_html_with_spans || parsed.translatedHtml;
+            } catch (e) {
+                // Sometime models wrap json with markdown
+                const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/);
+                if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[1]);
+                    originalHtml = parsed.original_html_with_spans || parsed.originalHtml;
+                    translatedHtml = parsed.translated_html_with_spans || parsed.translatedHtml;
+                } else {
+                    throw new Error("Failed to parse JSON from OpenRouter response");
+                }
+            }
 
         } else {
              // Standard Gemini

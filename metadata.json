@@ -1,0 +1,5 @@
+{
+  "name": "Bilingual AI Reader",
+  "description": "An AI-powered EPUB reader that provides synchronized bilingual translation with sentence-level highlighting and offline caching.",
+  "requestFramePermissions": []
+}

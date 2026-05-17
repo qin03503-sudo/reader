@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Zero-Learning UI Design System defaults */
+:root {
+  --background: 60 21% 97%;
+  --foreground: 0 0% 10%;
+  --border: 0 0% 90%;
+  --accent: 221 83% 53%;
+}
+
+body {
+  font-family: 'Inter', 'Geist', sans-serif;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.prose {
+    font-family: 'Georgia', 'Playfair Display', serif;
+}
+
+/* Explicit styling for AI translation highlights to match the description */
+.sync-hover {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.sync-hover:hover,
+.sync-hover.active {
+  background-color: rgba(37, 99, 235, 0.1); /* Electric blue accent */
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}

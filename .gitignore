@@ -1,8 +1,25 @@
-node_modules/
-build/
-dist/
-coverage/
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+/uploads
+# OS
 .DS_Store
-*.log
-.env*
+Thumbs.db
+
+# Env
+.env
+.env.*
 !.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+/../generated/prisma

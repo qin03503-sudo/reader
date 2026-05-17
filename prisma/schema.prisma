@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Book {
+  id        String   @id @default(uuid())
+  title     String
+  author    String
+  coverUrl  String?
+  localPath String   // Path to the .epub file on disk
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  chapters  Chapter[]
+}
+
+model Chapter {
+  id      String @id @default(uuid())
+  href    String
+  title   String
+  bookId  String
+  book    Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+}
+
+model TranslationCache {
+  id               String   @id @default(uuid())
+  originalHtml     String
+  translatedHtml   String
+  targetLanguage   String
+  model            String
+  createdAt        DateTime @default(now())
+}
+
+model Settings {
+  id            String @id @default("default")
+  openaiKey     String?
+  openaiBaseUrl String?
+  openaiKeys    String[]
+}

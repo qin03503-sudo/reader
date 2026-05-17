@@ -1,22 +1,23 @@
 import { json } from '@sveltejs/kit';
-import { PrismaClient } from '@prisma/client';
+import { db } from '$lib/server/db';
+import { book } from '$lib/server/schema';
+import { eq } from 'drizzle-orm';
 import fs from 'fs';
 import path from 'path';
 
-const prisma = new PrismaClient();
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 
 export async function DELETE({ params }) {
     try {
         const bookId = params.id;
-        const book = await prisma.book.findUnique({ where: { id: bookId } });
+        const foundBook = await db.query.book.findFirst({ where: eq(book.id, bookId) });
         
-        if (book) {
-            const localPath = path.join(UPLOADS_DIR, book.localPath);
+        if (foundBook) {
+            const localPath = path.join(UPLOADS_DIR, foundBook.localPath);
             if (fs.existsSync(localPath)) {
                 fs.unlinkSync(localPath);
             }
-            await prisma.book.delete({ where: { id: bookId } });
+            await db.delete(book).where(eq(book.id, bookId));
         }
         
         return json({ success: true });

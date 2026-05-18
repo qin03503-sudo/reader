@@ -1,17 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { book, chapter } from '$lib/server/schema';
-import fs from 'fs';
-import path from 'path';
 import { parseEpub } from '$lib/server/epub';
-import { v4 as uuidv4 } from 'uuid';
 import { desc } from 'drizzle-orm';
 
-// Ensure uploads directory exists
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+const UPLOADS_DIR = './uploads';
 
 export async function POST({ request }) {
     try {
@@ -23,15 +16,15 @@ export async function POST({ request }) {
         }
 
         const arrayBuffer = await file.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const buffer = new Uint8Array(arrayBuffer);
 
         // Parse EPUB to extract metadata and chapters
         const parsed = await parseEpub(buffer);
         
-        // Save file locally
-        const fileName = `${uuidv4()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        const localPath = path.join(UPLOADS_DIR, fileName);
-        fs.writeFileSync(localPath, buffer);
+        // Save file locally using Bun
+        const uuid = crypto.randomUUID();
+        const fileName = `${uuid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        await Bun.write(`${UPLOADS_DIR}/${fileName}`, buffer);
 
         // Save to Database
         let newBookWithChapters;

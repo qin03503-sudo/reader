@@ -1,6 +1,4 @@
 import JSZip from 'jszip';
-import fs from 'fs';
-import path from 'path';
 
 export interface BookMetadata {
   title: string;
@@ -20,7 +18,7 @@ export interface ParsedBook {
   opfBasePath: string;
 }
 
-export async function parseEpub(arrayBuffer: ArrayBuffer | Buffer): Promise<ParsedBook & { zip: JSZip }> {
+export async function parseEpub(arrayBuffer: ArrayBuffer | Buffer | Uint8Array): Promise<ParsedBook & { zip: JSZip }> {
   const zip = new JSZip();
   await zip.loadAsync(arrayBuffer);
 

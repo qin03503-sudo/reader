@@ -2,10 +2,10 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { book } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
-import fs from 'fs';
-import path from 'path';
+import { unlink } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 
-const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+const UPLOADS_DIR = './uploads';
 
 export async function DELETE({ params }) {
     try {
@@ -13,9 +13,9 @@ export async function DELETE({ params }) {
         const foundBook = await db.query.book.findFirst({ where: eq(book.id, bookId) });
         
         if (foundBook) {
-            const localPath = path.join(UPLOADS_DIR, foundBook.localPath);
-            if (fs.existsSync(localPath)) {
-                fs.unlinkSync(localPath);
+            const localPath = `${UPLOADS_DIR}/${foundBook.localPath}`;
+            if (existsSync(localPath)) {
+                await unlink(localPath);
             }
             await db.delete(book).where(eq(book.id, bookId));
         }

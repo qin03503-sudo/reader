@@ -11,9 +11,21 @@ export default defineConfig({
 		viteCompression({ algorithm: 'gzip' })
 	],
 	build: {
-		minify: 'terser'
+		minify: 'terser',
+		target: 'esnext',
+		cssCodeSplit: true,
+		sourcemap: false
 	},
 	ssr: {
-		noExternal: process.env.NODE_ENV === 'production' ? true : []
+		noExternal: process.env.NODE_ENV === 'production' ? true : [],
+		target: 'node'
+	},
+	server: {
+		fs: {
+			strict: false
+		}
+	},
+	optimizeDeps: {
+		exclude: ['jszip']
 	}
 });

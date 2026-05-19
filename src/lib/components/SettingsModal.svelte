@@ -9,7 +9,10 @@
   let settings = $state({
     openaiKey: '',
     openaiBaseUrl: '',
-    openaiKeys: [] as string[]
+    openaiKeys: [] as string[],
+    litellmBaseUrl: '',
+    litellmKeys: [] as string[],
+    openrouterKey: ''
   });
   let saving = $state(false);
 
@@ -20,6 +23,11 @@
       if (data) {
         settings = { ...settings, ...data };
       }
+      if (!settings.openaiKeys) settings.openaiKeys = [];
+      if (!settings.litellmKeys) settings.litellmKeys = [];
+      if (!settings.litellmBaseUrl) settings.litellmBaseUrl = '';
+      if (!settings.openrouterKey) settings.openrouterKey = '';
+      if (!settings.openaiBaseUrl) settings.openaiBaseUrl = '';
     } catch(e) {}
   });
 
@@ -47,9 +55,22 @@
   function addKey() {
       settings.openaiKeys = [...settings.openaiKeys, ''];
   }
+
   function removeKey(index: number) {
       settings.openaiKeys = settings.openaiKeys.filter((_, i) => i !== index);
   }
+
+  function handleLitellmKeyChange(index: number, e: Event) {
+      const val = (e.target as HTMLInputElement).value;
+      settings.litellmKeys[index] = val;
+  }
+  function addLitellmKey() {
+      settings.litellmKeys = [...settings.litellmKeys, ''];
+  }
+  function removeLitellmKey(index: number) {
+      settings.litellmKeys = settings.litellmKeys.filter((_, i) => i !== index);
+  }
+
 </script>
 
 {#if show}
@@ -64,10 +85,12 @@
       
       <h2 class="text-xl font-semibold mb-6">Settings</h2>
       
-      <div class="space-y-4">
+      <div class="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+        <div class="space-y-4 border-b pb-4">
+          <h3 class="font-medium text-gray-900">Custom OpenAI API</h3>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1" for="baseUrl">
-            OpenAI API Base URL
+            Base URL
           </label>
           <input 
             id="baseUrl"
@@ -80,7 +103,7 @@
         
         <div>
             <span class="block text-sm font-medium text-gray-700 mb-1">
-              OpenAI API Keys (round-robin)
+              API Keys (round-robin)
             </span>
             {#each settings.openaiKeys as key, i}
                 <div class="flex gap-2 mb-2">
@@ -99,6 +122,62 @@
             <button type="button" onclick={addKey} class="text-blue-500 text-sm mt-1">
                 + Add another key
             </button>
+        </div>
+        </div>
+
+        <div class="space-y-4 border-b pb-4">
+          <h3 class="font-medium text-gray-900">LiteLLM API</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="litellmBaseUrl">
+            Base URL
+          </label>
+          <input
+            id="litellmBaseUrl"
+            type="text"
+            bind:value={settings.litellmBaseUrl}
+            placeholder="e.g. https://your-litellm-proxy.com"
+            class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+          />
+        </div>
+
+        <div>
+            <span class="block text-sm font-medium text-gray-700 mb-1">
+              API Keys (round-robin)
+            </span>
+            {#each settings.litellmKeys as key, i}
+                <div class="flex gap-2 mb-2">
+                    <input
+                        type="password"
+                        value={key}
+                        oninput={(e) => handleLitellmKeyChange(i, e)}
+                        placeholder="sk-..."
+                        class="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                    />
+                    <button type="button" onclick={() => removeLitellmKey(i)} class="p-2 text-red-500">
+                        <X class="w-4 h-4" />
+                    </button>
+                </div>
+            {/each}
+            <button type="button" onclick={addLitellmKey} class="text-blue-500 text-sm mt-1">
+                + Add another key
+            </button>
+        </div>
+        </div>
+
+        <div class="space-y-4">
+          <h3 class="font-medium text-gray-900">OpenRouter API</h3>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="openrouterKey">
+              API Key
+            </label>
+            <input
+              id="openrouterKey"
+              type="password"
+              bind:value={settings.openrouterKey}
+              placeholder="sk-or-v1-..."
+              class="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
         </div>
 
         <div class="pt-4 flex justify-end gap-3">

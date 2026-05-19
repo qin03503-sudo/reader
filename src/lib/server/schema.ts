@@ -32,6 +32,9 @@ export const settings = pgTable('settings', {
   openaiKey: text('openai_key'),
   openaiBaseUrl: text('openai_base_url'),
   openaiKeys: text('openai_keys').array().default([]).notNull(),
+  litellmBaseUrl: text('litellm_base_url'),
+  litellmKeys: text('litellm_keys').array().default([]).notNull(),
+  openrouterKey: text('openrouter_key'),
 });
 
 // Relations

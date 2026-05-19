@@ -21,7 +21,9 @@
   const models = [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
     { id: 'custom:deepseek-chat', name: 'DeepSeek V3 (Custom)' },
-    { id: 'custom:deepseek-reasoner', name: 'DeepSeek R1 (Custom)' }
+    { id: 'custom:deepseek-reasoner', name: 'DeepSeek R1 (Custom)' },
+    { id: 'litellm:deepseek-chat', name: 'DeepSeek V3 (LiteLLM)' },
+    { id: 'openrouter:deepseek/deepseek-chat', name: 'DeepSeek V3 (OpenRouter)' }
   ];
 
   async function loadChapter() {

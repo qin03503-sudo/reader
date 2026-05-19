@@ -9,7 +9,9 @@ export async function GET() {
         if (!currentSettings) {
             [currentSettings] = await db.insert(settings).values({
                 id: 'default',
-                openaiKeys: []
+                openaiKeys: [],
+                litellmKeys: [],
+                openrouterKey: null
             }).returning();
         }
         return json(currentSettings);
@@ -25,12 +27,18 @@ export async function POST({ request }) {
         const [updatedSettings] = await db.insert(settings).values({
             id: 'default',
             openaiBaseUrl: body.openaiBaseUrl,
-            openaiKeys: body.openaiKeys || []
+            openaiKeys: body.openaiKeys || [],
+            litellmBaseUrl: body.litellmBaseUrl,
+            litellmKeys: body.litellmKeys || [],
+            openrouterKey: body.openrouterKey
         }).onConflictDoUpdate({
             target: settings.id,
             set: {
                 openaiBaseUrl: body.openaiBaseUrl,
-                openaiKeys: body.openaiKeys
+                openaiKeys: body.openaiKeys,
+                litellmBaseUrl: body.litellmBaseUrl,
+                litellmKeys: body.litellmKeys,
+                openrouterKey: body.openrouterKey
             }
         }).returning();
 

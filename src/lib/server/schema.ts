@@ -32,9 +32,13 @@ export const settings = pgTable('settings', {
   openaiKey: text('openai_key'),
   openaiBaseUrl: text('openai_base_url'),
   openaiKeys: text('openai_keys').array().default([]).notNull(),
+  openaiModel: text('openai_model').default('deepseek-chat'),
   litellmBaseUrl: text('litellm_base_url'),
   litellmKeys: text('litellm_keys').array().default([]).notNull(),
+  litellmModel: text('litellm_model').default('deepseek-chat'),
   openrouterKey: text('openrouter_key'),
+  openrouterModel: text('openrouter_model').default('deepseek/deepseek-chat'),
+  defaultModel: text('default_model').default('gemini-2.5-flash'),
 });
 
 // Relations

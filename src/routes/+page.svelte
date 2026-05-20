@@ -9,9 +9,35 @@
   let globalModel = $state('gemini-2.5-flash');
   let showSettings = $state(false);
 
-  onMount(() => {
-    loading = false;
+  onMount(async () => {
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.defaultModel) {
+            globalModel = data.defaultModel;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load settings on mount", e);
+    } finally {
+      loading = false;
+    }
   });
+
+  function handleSettingsClose() {
+    showSettings = false;
+    // Re-fetch default model in case it changed
+    fetch('/api/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.defaultModel) {
+            globalModel = data.defaultModel;
+        }
+      })
+      .catch(console.error);
+  }
+
 </script>
 
 {#if loading}
@@ -34,5 +60,5 @@
 
 <SettingsModal 
   show={showSettings} 
-  on:close={() => showSettings = false} 
+  on:close={handleSettingsClose}
 />

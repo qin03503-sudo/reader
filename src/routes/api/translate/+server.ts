@@ -90,7 +90,54 @@ ${html}`;
         let originalHtml = html;
         let translatedHtml = '';
 
-        if (model?.startsWith('custom:') || model?.startsWith('litellm:') || model?.startsWith('openrouter:')) {
+        if (model === 'custom') {
+            let url = '';
+            let key = '';
+
+            if (!currentSettings || !currentSettings.openaiBaseUrl || (!currentSettings.openaiKey && (!currentSettings.openaiKeys || currentSettings.openaiKeys.length === 0))) {
+                return json({ error: 'Custom OpenAI settings are missing.' }, { status: 400 });
+            }
+            url = currentSettings.openaiBaseUrl.endsWith('/') ? `${currentSettings.openaiBaseUrl}chat/completions` : `${currentSettings.openaiBaseUrl}/chat/completions`;
+            const keys = currentSettings.openaiKeys && currentSettings.openaiKeys.length > 0 ? currentSettings.openaiKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings.openaiKey ? [currentSettings.openaiKey] : []);
+            if (keys.length === 0 || !keys[0]) return json({ error: 'No API keys configured.' }, { status: 400 });
+            key = keys[0]; // Simple round robin or just first for now
+            const actualModel = currentSettings.openaiModel || 'deepseek-chat';
+
+            const parsed = await fetchOpenAIFormat(url, key, actualModel, prompt);
+            originalHtml = parsed.original_html_with_spans;
+            translatedHtml = parsed.translated_html_with_spans;
+
+        } else if (model === 'litellm') {
+            let url = '';
+            let key = '';
+
+            if (!currentSettings || !currentSettings.litellmBaseUrl || (!currentSettings.litellmKeys || currentSettings.litellmKeys.length === 0)) {
+                return json({ error: 'LiteLLM settings are missing.' }, { status: 400 });
+            }
+            url = currentSettings.litellmBaseUrl.endsWith('/') ? `${currentSettings.litellmBaseUrl}chat/completions` : `${currentSettings.litellmBaseUrl}/chat/completions`;
+            const keys = currentSettings.litellmKeys.filter((k: string) => k && k.trim() !== '');
+            if (keys.length === 0 || !keys[0]) return json({ error: 'No LiteLLM API keys configured.' }, { status: 400 });
+            key = keys[0];
+            const actualModel = currentSettings.litellmModel || 'deepseek-chat';
+
+            const parsed = await fetchOpenAIFormat(url, key, actualModel, prompt);
+            originalHtml = parsed.original_html_with_spans;
+            translatedHtml = parsed.translated_html_with_spans;
+        } else if (model === 'openrouter') {
+             let url = 'https://openrouter.ai/api/v1/chat/completions';
+             let key = '';
+
+             if (!currentSettings || !currentSettings.openrouterKey) {
+                return json({ error: 'OpenRouter settings are missing.' }, { status: 400 });
+            }
+            key = currentSettings.openrouterKey;
+            const actualModel = currentSettings.openrouterModel || 'deepseek/deepseek-chat';
+
+            const parsed = await fetchOpenAIFormat(url, key, actualModel, prompt);
+            originalHtml = parsed.original_html_with_spans;
+            translatedHtml = parsed.translated_html_with_spans;
+        } else if (model?.startsWith('custom:') || model?.startsWith('litellm:') || model?.startsWith('openrouter:')) {
+            // Keep legacy support for direct model strings temporarily
             let actualModel = model;
             let url = '';
             let key = '';
@@ -101,7 +148,7 @@ ${html}`;
                     return json({ error: 'Custom OpenAI settings are missing.' }, { status: 400 });
                 }
                 url = currentSettings.openaiBaseUrl.endsWith('/') ? `${currentSettings.openaiBaseUrl}chat/completions` : `${currentSettings.openaiBaseUrl}/chat/completions`;
-                const keys = currentSettings.openaiKeys && currentSettings.openaiKeys.length > 0 ? currentSettings.openaiKeys.filter(k => k && k.trim() !== '') : (currentSettings.openaiKey ? [currentSettings.openaiKey] : []);
+                const keys = currentSettings.openaiKeys && currentSettings.openaiKeys.length > 0 ? currentSettings.openaiKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings.openaiKey ? [currentSettings.openaiKey] : []);
                 if (keys.length === 0 || !keys[0]) return json({ error: 'No API keys configured.' }, { status: 400 });
                 key = keys[0];
             } else if (model.startsWith('litellm:')) {

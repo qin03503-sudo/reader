@@ -143,35 +143,36 @@ ${partHtml}`;
 }
 
 async function translateWithModel(model: string | undefined, currentSettings: any, prompt: string): Promise<TranslationResult> {
-    if (model === 'custom') {
+    if (model === 'custom' || model?.startsWith('custom:')) {
         if (!currentSettings || !currentSettings.openaiBaseUrl || (!currentSettings.openaiKey && (!currentSettings.openaiKeys || currentSettings.openaiKeys.length === 0))) {
             throw new Error('Custom OpenAI settings are missing.');
         }
         const url = currentSettings.openaiBaseUrl.endsWith('/') ? `${currentSettings.openaiBaseUrl}chat/completions` : `${currentSettings.openaiBaseUrl}/chat/completions`;
         const keys = currentSettings.openaiKeys && currentSettings.openaiKeys.length > 0 ? currentSettings.openaiKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings.openaiKey ? [currentSettings.openaiKey] : []);
         if (keys.length === 0 || !keys[0]) throw new Error('No API keys configured.');
-        const actualModel = currentSettings.openaiModel || 'deepseek-chat';
+        const actualModel = (model === 'custom' ? '' : model.replace('custom:', '')) || currentSettings.openaiModel || 'deepseek-chat';
 
         return fetchOpenAIFormat(url, keys[0], actualModel, prompt);
     }
 
-    if (model === 'litellm') {
+    if (model === 'litellm' || model?.startsWith('litellm:')) {
         if (!currentSettings || !currentSettings.litellmBaseUrl || (!currentSettings.litellmKeys || currentSettings.litellmKeys.length === 0)) {
             throw new Error('LiteLLM settings are missing.');
         }
         const url = currentSettings.litellmBaseUrl.endsWith('/') ? `${currentSettings.litellmBaseUrl}chat/completions` : `${currentSettings.litellmBaseUrl}/chat/completions`;
         const keys = currentSettings.litellmKeys.filter((k: string) => k && k.trim() !== '');
         if (keys.length === 0 || !keys[0]) throw new Error('No LiteLLM API keys configured.');
-        const actualModel = currentSettings.litellmModel || 'deepseek-chat';
+        const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings.litellmModel || 'deepseek-chat';
 
         return fetchOpenAIFormat(url, keys[0], actualModel, prompt);
     }
 
-    if (model === 'openrouter') {
+    if (model === 'openrouter' || model?.startsWith('openrouter:')) {
         if (!currentSettings || !currentSettings.openrouterKey) {
             throw new Error('OpenRouter settings are missing.');
         }
-        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, currentSettings.openrouterModel || 'deepseek/deepseek-chat', prompt);
+        const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings.openrouterModel || 'deepseek/deepseek-chat';
+        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt);
     }
 
     const apiKey = process.env.GEMINI_API_KEY || '';

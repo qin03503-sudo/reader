@@ -50,7 +50,7 @@ async function fetchOpenAIFormat(url: string, key: string, model: string, prompt
 }
 
 export async function POST({ request }) {
-    const { html, targetLanguage, model } = await request.json();
+    const { html, targetLanguage, model, bookTitle, chapterTitle } = await request.json();
 
     if (!html || !targetLanguage) {
         return json({ error: 'Missing html or targetLanguage' }, { status: 400 });
@@ -75,14 +75,22 @@ export async function POST({ request }) {
 
         const currentSettings = await db.query.settings.findFirst({ where: eq(settings.id, 'default') });
 
+
+        // Chunking the HTML simply by top-level block elements (e.g., <p>, <div>, <h1-6>)
+        // For simplicity in this demo, we'll try to split by <p> tags or just pass the whole thing if it's small enough.
+        // A robust solution would use a DOM parser. Here we just add context to the prompt.
         const prompt = `You are an expert bilingual e-book translator. 
 Target Language: ${targetLanguage}
+Book Title: ${bookTitle || 'Unknown'}
+Chapter Title: ${chapterTitle || 'Unknown'}
 
 Task:
 1. Identify logical sentences within the provided HTML block.
 2. Translate the text into ${targetLanguage}, preserving ALL original HTML tags (like <b>, <i>, <a>, <img>).
+   - DO NOT translate the contents or attributes of <img>, <table>, or <figure> tags.
+   - Keep advanced, technical, or context-specific words original if there is no direct, common translation.
 3. Wrap each matching logical sentence in BOTH the original and translated HTML with a span tag: <span class="sync-hover" data-sync-id="[sentence-index]">...</span>.
-Use a simple numeric index 1, 2, 3... for the data-sync-id. The sync IDs must perfectly match between the original and translated versions so they can be highlighted together.
+Use a simple numeric index 1, 2, 3... for the data-sync-id. The sync IDs must perfectly match between the original and translated versions so they can be highlighted together. Ensure IDs are unique.
 
 HTML Block:
 ${html}`;

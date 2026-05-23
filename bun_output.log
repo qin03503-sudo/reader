@@ -1,0 +1,26 @@
+$ bun --bun vite dev
+You are using Node.js 22.6.0. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.
+`config.kit.csrf.checkOrigin` has been deprecated in favour of `csrf.trustedOrigins`. It will be removed in a future version
+6:34:21 AM [vite] (client) Forced re-optimization of dependencies
+6:34:25 AM [vite] (ssr) [optimizer] bundling dependencies...
+6:34:25 AM [vite] (client) [optimizer] bundling dependencies...
+
+  VITE v8.0.13  ready in 6006 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
+Error ensuring bucket exists: 239 |         }, !keepOpen)
+240 |           handleResponse();
+241 |         onEnd();
+242 |       }), !softFail)
+243 |         this[kFetchRequest].catch((err) => {
+244 |             err = new Error("ECONNREFUSED"), err.code = "ECONNREFUSED";
+                        ^
+error: ECONNREFUSED
+ code: "ECONNREFUSED"
+
+      at <anonymous> (node:_http_client:244:19)
+
+{"level":"ERROR","time":"2026-05-23T06:35:49.934Z","pid":123637,"hostname":"devbox","err":{"type":"DrizzleQueryError","message":"Failed query: select \"book\".\"id\", \"book\".\"title\", \"book\".\"author\", \"book\".\"cover_url\", \"book\".\"local_path\", \"book\".\"hash\", \"book\".\"minio_key\", \"book\".\"created_at\", \"book\".\"updated_at\", \"book_chapters\".\"data\" as \"chapters\" from \"book\" \"book\" left join lateral (select coalesce(json_agg(json_build_array(\"book_chapters\".\"id\", \"book_chapters\".\"href\", \"book_chapters\".\"title\", \"book_chapters\".\"book_id\")), '[]'::json) as \"data\" from \"chapter\" \"book_chapters\" where \"book_chapters\".\"book_id\" = \"book\".\"id\") \"book_chapters\" on true order by \"book\".\"created_at\" desc\nparams: : Failed to connect","stack":"Error: Failed query: select \"book\".\"id\", \"book\".\"title\", \"book\".\"author\", \"book\".\"cover_url\", \"book\".\"local_path\", \"book\".\"hash\", \"book\".\"minio_key\", \"book\".\"created_at\", \"book\".\"updated_at\", \"book_chapters\".\"data\" as \"chapters\" from \"book\" \"book\" left join lateral (select coalesce(json_agg(json_build_array(\"book_chapters\".\"id\", \"book_chapters\".\"href\", \"book_chapters\".\"title\", \"book_chapters\".\"book_id\")), '[]'::json) as \"data\" from \"chapter\" \"book_chapters\" where \"book_chapters\".\"book_id\" = \"book\".\"id\") \"book_chapters\" on true order by \"book\".\"created_at\" desc\nparams: \n    at queryWithCache (/app/node_modules/drizzle-orm/pg-core/session.js:41:19)\n    at processTicksAndRejections (native:7:39)\ncaused by: undefined","query":"select \"book\".\"id\", \"book\".\"title\", \"book\".\"author\", \"book\".\"cover_url\", \"book\".\"local_path\", \"book\".\"hash\", \"book\".\"minio_key\", \"book\".\"created_at\", \"book\".\"updated_at\", \"book_chapters\".\"data\" as \"chapters\" from \"book\" \"book\" left join lateral (select coalesce(json_agg(json_build_array(\"book_chapters\".\"id\", \"book_chapters\".\"href\", \"book_chapters\".\"title\", \"book_chapters\".\"book_id\")), '[]'::json) as \"data\" from \"chapter\" \"book_chapters\" where \"book_chapters\".\"book_id\" = \"book\".\"id\") \"book_chapters\" on true order by \"book\".\"created_at\" desc","params":[]},"msg":"Failed to fetch books list"}
+error: "vite" exited with code 143
+error: script "dev" exited with code 143

@@ -191,6 +191,19 @@ async function translateWithModel(model: string | undefined, currentSettings: an
         return fetchOpenAIFormat(url, keys[0], actualModel, prompt);
     }
 
+    if (model === 'mistral' || model?.startsWith('mistral:')) {
+        if (!currentSettings || (!currentSettings.mistralKeys || currentSettings.mistralKeys.length === 0)) {
+            throw new Error('Mistral settings are missing.');
+        }
+        const baseUrl = currentSettings.mistralBaseUrl || 'https://api.mistral.ai/v1';
+        const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`;
+        const keys = currentSettings.mistralKeys.filter((k: string) => k && k.trim() !== '');
+        if (keys.length === 0 || !keys[0]) throw new Error('No Mistral API keys configured.');
+        const actualModel = (model === 'mistral' ? '' : model.replace('mistral:', '')) || currentSettings.mistralModel || 'mistral-large-latest';
+
+        return fetchOpenAIFormat(url, keys[0], actualModel, prompt);
+    }
+
     if (model === 'openrouter' || model?.startsWith('openrouter:')) {
         if (!currentSettings || !currentSettings.openrouterKey) {
             throw new Error('OpenRouter settings are missing.');

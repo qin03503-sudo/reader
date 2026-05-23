@@ -15,6 +15,9 @@
     litellmBaseUrl: '',
     litellmKeys: [] as string[],
     litellmModel: 'deepseek-chat',
+    mistralBaseUrl: '',
+    mistralKeys: [] as string[],
+    mistralModel: 'mistral-large-latest',
     openrouterKey: '',
     openrouterModel: 'deepseek/deepseek-chat',
     defaultModel: 'gemini-2.5-flash'
@@ -26,14 +29,16 @@
   let testingStatus = $state<Record<string, { loading: boolean, success?: boolean, error?: string }>>({
       custom: { loading: false },
       litellm: { loading: false },
-      openrouter: { loading: false }
+      openrouter: { loading: false },
+      mistral: { loading: false }
   });
 
   const modelOptions = [
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Default)' },
     { id: 'custom', name: 'Custom OpenAI' },
     { id: 'litellm', name: 'LiteLLM' },
-    { id: 'openrouter', name: 'OpenRouter' }
+    { id: 'openrouter', name: 'OpenRouter' },
+    { id: 'mistral', name: 'Mistral' }
   ];
 
   onMount(async () => {
@@ -45,6 +50,7 @@
       }
       if (!settings.openaiKeys) settings.openaiKeys = [];
       if (!settings.litellmKeys) settings.litellmKeys = [];
+      if (!settings.mistralKeys) settings.mistralKeys = [];
       if (!settings.litellmBaseUrl) settings.litellmBaseUrl = '';
       if (!settings.openrouterKey) settings.openrouterKey = '';
       if (!settings.openaiBaseUrl) settings.openaiBaseUrl = '';
@@ -88,7 +94,14 @@
               key: settings.litellmKeys[0] || '',
               model: settings.litellmModel
           };
-      } else if (provider === 'openrouter') {
+      } else if (provider === 'mistral') {
+              const keys = settings.mistralKeys?.filter((k: string) => k && k.trim() !== '');
+              if (!keys || keys.length === 0) throw new Error('API key required');
+              config = {
+                  baseUrl: settings.mistralBaseUrl || 'https://api.mistral.ai/v1',
+                  key: keys[0],
+                  model: settings.mistralModel || 'mistral-large-latest'
+              }; } else if (provider === 'openrouter') {
           config = {
               key: settings.openrouterKey,
               model: settings.openrouterModel
@@ -142,6 +155,20 @@
   function removeLitellmKey(index: number) {
       settings.litellmKeys = settings.litellmKeys.filter((_, i) => i !== index);
   }
+
+  function handleMistralKeyChange(index: number, event: Event) {
+      const target = event.target as HTMLInputElement;
+      settings.mistralKeys[index] = target.value;
+  }
+
+  function addMistralKey() {
+      settings.mistralKeys = [...settings.mistralKeys, ''];
+  }
+
+  function removeMistralKey(index: number) {
+      settings.mistralKeys = settings.mistralKeys.filter((_: any, i: number) => i !== index);
+  }
+
 
 </script>
 
@@ -386,6 +413,86 @@
             />
           </div>
         </div>
+
+        <!-- Mistral -->
+        <div class="space-y-4 bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm">
+           <div class="flex justify-between items-center mb-2">
+              <h3 class="font-semibold text-lg text-gray-900">Mistral</h3>
+              <button
+                onclick={() => testConnection('mistral')}
+                disabled={testingStatus.mistral.loading}
+                class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[#2563eb] bg-blue-50 hover:bg-blue-100 rounded-[10px] transition-colors disabled:opacity-50"
+              >
+                  {#if testingStatus.mistral.loading}
+                      <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-[#2563eb]"></div>
+                      <span>Testing...</span>
+                  {:else if testingStatus.mistral.success}
+                      <CheckCircle2 class="w-4 h-4 text-green-500" />
+                      <span class="text-green-600">Success</span>
+                  {:else if testingStatus.mistral.error}
+                      <AlertCircle class="w-4 h-4 text-red-500" />
+                      <span class="text-red-600">Failed</span>
+                  {:else}
+                      <Play class="w-4 h-4" />
+                      <span>Test</span>
+                  {/if}
+              </button>
+          </div>
+
+          {#if testingStatus.mistral.error}
+              <div class="text-xs text-red-500 bg-red-50 p-2 rounded-[10px]">{testingStatus.mistral.error}</div>
+          {/if}
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="mistralBaseUrl">
+              Base URL (Optional)
+            </label>
+            <input
+              id="mistralBaseUrl"
+              type="text"
+              bind:value={settings.mistralBaseUrl}
+              placeholder="e.g. https://api.mistral.ai/v1"
+              class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="mistralModel">
+              Model Name
+            </label>
+            <input
+              id="mistralModel"
+              type="text"
+              bind:value={settings.mistralModel}
+              placeholder="e.g. mistral-large-latest"
+              class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+            />
+          </div>
+
+          <div>
+              <span class="block text-sm font-medium text-gray-700 mb-1.5">
+                API Keys (round-robin)
+              </span>
+              {#each settings.mistralKeys as key, i}
+                  <div class="flex gap-2 mb-2">
+                      <input
+                          type="password"
+                          value={key}
+                          oninput={(e) => handleMistralKeyChange(i, e)}
+                          placeholder="API Key"
+                          class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                      />
+                      <button type="button" onclick={() => removeMistralKey(i)} class="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-[10px] transition-colors">
+                          <X class="w-4 h-4" />
+                      </button>
+                  </div>
+              {/each}
+              <button type="button" onclick={addMistralKey} class="text-[#2563eb] hover:text-[#1d4ed8] text-sm font-medium mt-1">
+                  + Add another key
+              </button>
+          </div>
+        </div>
+
 
       </div>
 

@@ -14,6 +14,8 @@ export async function GET() {
                 openrouterKey: null,
                 openaiModel: 'deepseek-chat',
                 litellmModel: 'deepseek-chat',
+                mistralKeys: [],
+                mistralModel: 'mistral-large-latest',
                 openrouterModel: 'deepseek/deepseek-chat',
                 defaultModel: 'gemini-2.5-flash'
             }).returning();
@@ -36,6 +38,9 @@ export async function POST({ request }) {
             litellmBaseUrl: body.litellmBaseUrl,
             litellmKeys: body.litellmKeys || [],
             litellmModel: body.litellmModel || 'deepseek-chat',
+            mistralBaseUrl: body.mistralBaseUrl,
+            mistralKeys: body.mistralKeys || [],
+            mistralModel: body.mistralModel || 'mistral-large-latest',
             openrouterKey: body.openrouterKey,
             openrouterModel: body.openrouterModel || 'deepseek/deepseek-chat',
             defaultModel: body.defaultModel || 'gemini-2.5-flash'
@@ -48,6 +53,9 @@ export async function POST({ request }) {
                 litellmBaseUrl: body.litellmBaseUrl,
                 litellmKeys: body.litellmKeys,
                 litellmModel: body.litellmModel,
+                mistralBaseUrl: body.mistralBaseUrl,
+                mistralKeys: body.mistralKeys,
+                mistralModel: body.mistralModel,
                 openrouterKey: body.openrouterKey,
                 openrouterModel: body.openrouterModel,
                 defaultModel: body.defaultModel

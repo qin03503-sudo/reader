@@ -40,6 +40,11 @@ export const settings = pgTable('settings', {
   litellmModel: text('litellm_model').default('deepseek-chat'),
   openrouterKey: text('openrouter_key'),
   openrouterModel: text('openrouter_model').default('deepseek/deepseek-chat'),
+
+  mistralBaseUrl: text('mistral_base_url'),
+  mistralKeys: text('mistral_keys').array().default([]).notNull(),
+  mistralModel: text('mistral_model').default('mistral-large-latest'),
+
   defaultModel: text('default_model').default('gemini-2.5-flash'),
 });
 

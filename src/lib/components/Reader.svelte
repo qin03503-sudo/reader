@@ -193,62 +193,65 @@
   });
 
   const handleMouseOver = (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains('sync-hover')) {
-      const syncId = target.getAttribute('data-sync-id');
-      if (syncId) {
-        const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
-        elements.forEach(el => el.classList.add('active'));
-        const counterpart = Array.from(elements).find((el) => el !== target) as HTMLElement | undefined;
-        counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      }
-    }
+    const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
+    if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return;
+
+    const syncId = el.getAttribute('data-sync-id');
+    if (!syncId) return;
+
+    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
+    elements.forEach((element) => element.classList.add('active'));
+    const counterpart = Array.from(elements).find((element) => element !== el) as HTMLElement | undefined;
+    counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
 
   const handleMouseOut = (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains('sync-hover')) {
-      const syncId = target.getAttribute('data-sync-id');
-      if (syncId) {
-        const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
-        elements.forEach(el => el.classList.remove('active'));
-      }
-    }
+    const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
+    if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return;
+
+    const syncId = el.getAttribute('data-sync-id');
+    if (!syncId) return;
+
+    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
+    elements.forEach((element) => element.classList.remove('active'));
   };
 
   const handleClick = async (e: MouseEvent) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains('sync-hover')) {
-      const sentence = target.textContent || '';
-      if (!sentence.trim()) return;
+    const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
+    if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return;
 
-      showAnalysis = true;
-      analysisLoading = true;
-      analysisData = null;
-      analysisError = '';
+    const syncId = el.getAttribute('data-sync-id');
+    if (!syncId) return;
 
-      try {
-        const res = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sentence,
-            targetLanguage,
-            model: selectedModel,
-            context: book?.title + " - " + chapter?.title
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          analysisData = data;
-        } else {
-          analysisError = data.error || 'Analysis failed';
-        }
-      } catch (err) {
-        analysisError = 'Failed to connect';
-      } finally {
-        analysisLoading = false;
+    const sentence = el.textContent || '';
+    if (!sentence.trim()) return;
+
+    showAnalysis = true;
+    analysisLoading = true;
+    analysisData = null;
+    analysisError = '';
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sentence,
+          targetLanguage,
+          model: selectedModel,
+          context: book?.title + " - " + chapter?.title
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        analysisData = data;
+      } else {
+        analysisError = data.error || 'Analysis failed';
       }
+    } catch (err) {
+      analysisError = 'Failed to connect';
+    } finally {
+      analysisLoading = false;
     }
   };
 

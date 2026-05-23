@@ -22,6 +22,8 @@
   let selectedModel = $state('gemini-2.5-flash');
   let settings = $state<any>(null);
   let translateProgressText = $state('Preparing translation…');
+  let totalTranslationParts = $state(0);
+  let completedTranslationParts = $state(0);
   const prefetchedTranslations = new Map<number, { originalHtml: string; translatedHtml: string }>();
 
   // Analysis / Dictionary state
@@ -81,39 +83,64 @@
     }
   }
 
+  function splitHtmlIntoClientParts(html: string, maxPartLength = 1500): string[] {
+    const blockRegex = /(<(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)[^>]*>[\s\S]*?<\/(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)>)/gi;
+    const blocks = html.match(blockRegex);
+    if (!blocks || blocks.length === 0) return [html];
+    const parts: string[] = [];
+    let current = '';
+    for (const block of blocks) {
+      if (current.length > 0 && current.length + block.length > maxPartLength) {
+        parts.push(current);
+        current = block;
+      } else {
+        current += block;
+      }
+    }
+    if (current) parts.push(current);
+    return parts;
+  }
+
   async function translateChapter(sourceHtml: string) {
       translationLoading = true;
-      translateProgressText = 'Analyzing chapter structure…';
+      translateProgressText = 'Preparing translation…';
       translationError = '';
-      let progressTimer: ReturnType<typeof setInterval> | null = null;
+      translatedContent = '';
+      completedTranslationParts = 0;
       try {
-          progressTimer = setInterval(() => {
-              if (translateProgressText === 'Analyzing chapter structure…') translateProgressText = 'Translating key passages…';
-              else if (translateProgressText === 'Translating key passages…') translateProgressText = 'Aligning sentence sync markers…';
-              else translateProgressText = 'Finalizing bilingual layout…';
-          }, 1600);
-          const res = await fetch('/api/translate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  html: sourceHtml,
-                  targetLanguage,
-                  model: selectedModel,
-                  bookTitle: book?.title,
-                  chapterTitle: chapter?.title
-              })
-          });
-          const data = await res.json();
-          if (res.ok) {
-              htmlContent = data.originalHtml; // Contains spans
-              translatedContent = data.translatedHtml; // Contains spans
-          } else {
-              translationError = data.error || 'Translation failed';
+          const parts = splitHtmlIntoClientParts(sourceHtml, 1200);
+          totalTranslationParts = parts.length;
+          const translatedParts: string[] = [];
+          const originalParts: string[] = [];
+
+          for (let i = 0; i < parts.length; i++) {
+            translateProgressText = `Translating part ${i + 1} of ${parts.length}…`;
+            const res = await fetch('/api/translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    html: parts[i],
+                    targetLanguage,
+                    model: selectedModel,
+                    bookTitle: book?.title,
+                    chapterTitle: chapter?.title
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              translationError = data.error || `Translation failed on part ${i + 1}`;
+              break;
+            }
+
+            originalParts.push(data.originalHtml);
+            translatedParts.push(data.translatedHtml);
+            completedTranslationParts = i + 1;
+            htmlContent = originalParts.join('');
+            translatedContent = translatedParts.join('');
           }
       } catch (e) {
           translationError = 'Failed to connect to translation service';
       } finally {
-          if (progressTimer) clearInterval(progressTimer);
           translationLoading = false;
           attachEventListeners();
       }
@@ -341,18 +368,28 @@
         <div class="flex flex-col justify-center items-center h-64 gap-4">
             <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
             <p class="text-sm text-gray-500">{translateProgressText}</p>
-            <div class="flex gap-1">
-              <span class="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.2s]"></span>
-              <span class="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.1s]"></span>
-              <span class="w-2 h-2 rounded-full bg-blue-400 animate-bounce"></span>
+            <div class="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div class="h-full bg-blue-500 transition-all duration-300" style={`width: ${totalTranslationParts > 0 ? (completedTranslationParts / totalTranslationParts) * 100 : 5}%`}></div>
             </div>
+            <p class="text-xs text-gray-400">{completedTranslationParts}/{totalTranslationParts || 1} parts completed</p>
         </div>
-      {:else if translationError}
-        <div class="text-red-500 p-4 bg-red-50 rounded-lg">{translationError}</div>
       {:else if translatedContent}
         <div bind:this={translatedContainer} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto" dir="rtl">
           {@html translatedContent}
         </div>
+        {#if completedTranslationParts < totalTranslationParts}
+          <div class="mt-6 space-y-3">
+            {#each Array(Math.min(3, totalTranslationParts - completedTranslationParts)) as _}
+              <div class="animate-pulse space-y-2">
+                <div class="h-3 bg-gray-200 rounded w-full"></div>
+                <div class="h-3 bg-gray-200 rounded w-11/12"></div>
+                <div class="h-3 bg-gray-200 rounded w-9/12"></div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      {:else if translationError}
+        <div class="text-red-500 p-4 bg-red-50 rounded-lg">{translationError}</div>
       {:else if !loading && htmlContent}
         <div class="flex flex-col justify-center items-center h-64 gap-4 text-gray-400">
            <p>Waiting for translation...</p>

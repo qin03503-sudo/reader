@@ -192,6 +192,18 @@
     if (chapter) loadChapter();
   });
 
+  const getSyncPair = (syncId: string): HTMLElement[] => {
+    if (!syncId) return [];
+    const selector = `[data-sync-id="${syncId}"]`;
+    const originalMatches = originalContainer
+      ? Array.from(originalContainer.querySelectorAll<HTMLElement>(selector))
+      : [];
+    const translatedMatches = translatedContainer
+      ? Array.from(translatedContainer.querySelectorAll<HTMLElement>(selector))
+      : [];
+    return [...originalMatches, ...translatedMatches];
+  };
+
   const handleMouseOver = (e: MouseEvent) => {
     const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
     if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return;
@@ -199,9 +211,9 @@
     const syncId = el.getAttribute('data-sync-id');
     if (!syncId) return;
 
-    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
+    const elements = getSyncPair(syncId);
     elements.forEach((element) => element.classList.add('active'));
-    const counterpart = Array.from(elements).find((element) => element !== el) as HTMLElement | undefined;
+    const counterpart = elements.find((element) => element !== el);
     counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
 
@@ -212,7 +224,7 @@
     const syncId = el.getAttribute('data-sync-id');
     if (!syncId) return;
 
-    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
+    const elements = getSyncPair(syncId);
     elements.forEach((element) => element.classList.remove('active'));
   };
 

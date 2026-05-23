@@ -54,6 +54,10 @@ async function fetchOpenAIFormat(url: string, key: string, model: string, prompt
     }
 
     const data = await response.json();
+
+    if (data?.error) {
+        throw new Error(data.error.message ? `API Error: ${data.error.message}` : `API Error: ${JSON.stringify(data.error)}`);
+    }
     const content =
         data?.choices?.[0]?.message?.content ??
         data?.choices?.[0]?.text ??

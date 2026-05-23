@@ -133,8 +133,11 @@
               break;
             }
 
-            originalParts.push(data.originalHtml);
-            translatedParts.push(data.translatedHtml);
+            // Prefix sync ids to avoid collisions across parts
+            const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="part-${i}-$1"`);
+            originalParts.push(prefixIds(data.originalHtml));
+            translatedParts.push(prefixIds(data.translatedHtml));
+
             completedTranslationParts = i + 1;
             htmlContent = originalParts.join('');
             translatedContent = translatedParts.join('');
@@ -154,22 +157,34 @@
           const chapterRes = await fetch(`/api/chapter?bookId=${book.id}&href=${encodeURIComponent(nextChapter.href)}`);
           if (!chapterRes.ok) return;
           const chapterData = await chapterRes.json();
-          const translateRes = await fetch('/api/translate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  html: chapterData.html,
-                  targetLanguage,
-                  model: selectedModel,
-                  bookTitle: book?.title,
-                  chapterTitle: nextChapter?.title
-              })
-          });
-          if (!translateRes.ok) return;
-          const translated = await translateRes.json();
+
+          const parts = splitHtmlIntoClientParts(chapterData.html, 1200);
+          const translatedParts = [];
+          const originalParts = [];
+
+          for (let i = 0; i < parts.length; i++) {
+              const translateRes = await fetch('/api/translate', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                      html: parts[i],
+                      targetLanguage,
+                      model: selectedModel,
+                      bookTitle: book?.title,
+                      chapterTitle: nextChapter?.title
+                  })
+              });
+              if (!translateRes.ok) return;
+              const translated = await translateRes.json();
+
+              const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="part-${i}-$1"`);
+              originalParts.push(prefixIds(translated.originalHtml));
+              translatedParts.push(prefixIds(translated.translatedHtml));
+          }
+
           prefetchedTranslations.set(nextIndex, {
-              originalHtml: translated.originalHtml,
-              translatedHtml: translated.translatedHtml
+              originalHtml: originalParts.join(''),
+              translatedHtml: translatedParts.join('')
           });
       } catch {
           // Silent background prefetch failure.
@@ -249,10 +264,11 @@
     const counterpart = elements.find((element) => element !== el);
     if (counterpart) {
       const container = originalContainer?.contains(counterpart) ? originalContainer : translatedContainer;
-      if (container && !isElementInViewport(counterpart, container)) {
+      const scrollableParent = container?.parentElement;
+      if (scrollableParent && !isElementInViewport(counterpart, scrollableParent)) {
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         counterpart.scrollIntoView({
-          block: 'nearest',
+          block: 'center',
           behavior: prefersReducedMotion ? 'instant' : 'smooth'
         });
       }

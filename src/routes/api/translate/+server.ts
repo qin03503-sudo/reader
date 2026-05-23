@@ -73,7 +73,7 @@ async function fetchOpenAIFormat(url: string, key: string, model: string, prompt
     }
 }
 
-function splitHtmlIntoTranslatableParts(html: string, maxPartLength = 2500): string[] {
+function splitHtmlIntoTranslatableParts(html: string, maxPartLength = 800): string[] {
     const blockRegex = /(<(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)[^>]*>[\s\S]*?<\/(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)>)/gi;
     const blocks = html.match(blockRegex);
 

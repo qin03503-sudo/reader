@@ -83,7 +83,7 @@
     }
   }
 
-  function splitHtmlIntoClientParts(html: string, maxPartLength = 1500): string[] {
+  function splitHtmlIntoClientParts(html: string, maxPartLength = 600): string[] {
     const blockRegex = /(<(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)[^>]*>[\s\S]*?<\/(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)>)/gi;
     const blocks = html.match(blockRegex);
     if (!blocks || blocks.length === 0) return [html];
@@ -101,6 +101,11 @@
     return parts;
   }
 
+
+  function rewriteSyncIds(html: string, partIndex: number): string {
+    return html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="${partIndex}_$1"`);
+  }
+
   async function translateChapter(sourceHtml: string) {
       translationLoading = true;
       translateProgressText = 'Preparing translation…';
@@ -108,7 +113,7 @@
       translatedContent = '';
       completedTranslationParts = 0;
       try {
-          const parts = splitHtmlIntoClientParts(sourceHtml, 1200);
+          const parts = splitHtmlIntoClientParts(sourceHtml, 600);
           totalTranslationParts = parts.length;
           const translatedParts: string[] = [];
           const originalParts: string[] = [];
@@ -132,8 +137,11 @@
               break;
             }
 
-            originalParts.push(data.originalHtml);
-            translatedParts.push(data.translatedHtml);
+            const rewrittenOriginal = rewriteSyncIds(data.originalHtml, i);
+            const rewrittenTranslated = rewriteSyncIds(data.translatedHtml, i);
+
+            originalParts.push(rewrittenOriginal);
+            translatedParts.push(rewrittenTranslated);
             completedTranslationParts = i + 1;
             htmlContent = originalParts.join('');
             translatedContent = translatedParts.join('');
@@ -142,7 +150,6 @@
           translationError = 'Failed to connect to translation service';
       } finally {
           translationLoading = false;
-          attachEventListeners();
       }
   }
 
@@ -192,16 +199,30 @@
     if (chapter) loadChapter();
   });
 
+  $effect(() => {
+    if (originalContainer || translatedContainer) {
+       attachEventListeners();
+    }
+  });
+
+  let listenersAttached = false;
   function attachEventListeners() {
+    if (listenersAttached) return;
+    if (!originalContainer || !translatedContainer) return;
+    listenersAttached = true;
     setTimeout(() => {
         const handleMouseOver = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             if (target.classList.contains('sync-hover')) {
                 const syncId = target.getAttribute('data-sync-id');
-                if (syncId) {
-                    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
-                    elements.forEach(el => el.classList.add('active'));
-                    const counterpart = Array.from(elements).find((el) => el !== target) as HTMLElement | undefined;
+                if (syncId && originalContainer && translatedContainer) {
+                    const originalEl = originalContainer.querySelector(`[data-sync-id="${syncId}"]`) as HTMLElement;
+                    const translatedEl = translatedContainer.querySelector(`[data-sync-id="${syncId}"]`) as HTMLElement;
+
+                    if (originalEl) originalEl.classList.add('active');
+                    if (translatedEl) translatedEl.classList.add('active');
+
+                    const counterpart = target === originalEl ? translatedEl : originalEl;
                     counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                 }
             }
@@ -211,9 +232,11 @@
             const target = e.target as HTMLElement;
             if (target.classList.contains('sync-hover')) {
                 const syncId = target.getAttribute('data-sync-id');
-                if (syncId) {
-                    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
-                    elements.forEach(el => el.classList.remove('active'));
+                if (syncId && originalContainer && translatedContainer) {
+                    const originalEl = originalContainer.querySelector(`[data-sync-id="${syncId}"]`);
+                    const translatedEl = translatedContainer.querySelector(`[data-sync-id="${syncId}"]`);
+                    if (originalEl) originalEl.classList.remove('active');
+                    if (translatedEl) translatedEl.classList.remove('active');
                 }
             }
         };
@@ -363,34 +386,38 @@
     <div class="w-px bg-gray-200 flex-none"></div>
 
     <!-- Translated Pane -->
-    <div class="w-1/2 overflow-y-auto relative p-8 bg-white/50">
-      {#if translationLoading}
-        <div class="flex flex-col justify-center items-center h-64 gap-4">
-            <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-            <p class="text-sm text-gray-500">{translateProgressText}</p>
-            <div class="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-500 transition-all duration-300" style={`width: ${totalTranslationParts > 0 ? (completedTranslationParts / totalTranslationParts) * 100 : 5}%`}></div>
-            </div>
-            <p class="text-xs text-gray-400">{completedTranslationParts}/{totalTranslationParts || 1} parts completed</p>
+    <div class="w-1/2 overflow-y-auto relative p-8 bg-white/50 flex flex-col">
+      {#if translationLoading && totalTranslationParts > 0}
+        <div class="w-full h-1 bg-gray-100 mb-4 sticky top-0 z-10 rounded-full overflow-hidden flex-none">
+          <div class="h-full bg-blue-500 transition-all duration-300" style={`width: ${(completedTranslationParts / totalTranslationParts) * 100}%`}></div>
         </div>
-      {:else if translatedContent}
-        <div bind:this={translatedContainer} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto" dir="rtl">
+      {/if}
+
+      {#if translationError}
+        <div class="text-red-500 p-4 bg-red-50 rounded-lg mb-4 flex-none">{translationError}</div>
+      {/if}
+
+      {#if translatedContent}
+        <div bind:this={translatedContainer} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto w-full" dir="rtl">
           {@html translatedContent}
         </div>
-        {#if completedTranslationParts < totalTranslationParts}
-          <div class="mt-6 space-y-3">
-            {#each Array(Math.min(3, totalTranslationParts - completedTranslationParts)) as _}
-              <div class="animate-pulse space-y-2">
-                <div class="h-3 bg-gray-200 rounded w-full"></div>
-                <div class="h-3 bg-gray-200 rounded w-11/12"></div>
-                <div class="h-3 bg-gray-200 rounded w-9/12"></div>
-              </div>
-            {/each}
+      {/if}
+
+      {#if translationLoading && completedTranslationParts < totalTranslationParts}
+        <div class="mt-6 space-y-6 mx-auto w-full max-w-[65ch]">
+          {#each Array(Math.min(3, totalTranslationParts - completedTranslationParts)) as _}
+            <div class="animate-pulse space-y-3">
+              <div class="h-4 bg-gray-200 rounded w-full"></div>
+              <div class="h-4 bg-gray-200 rounded w-11/12"></div>
+              <div class="h-4 bg-gray-200 rounded w-9/12"></div>
+            </div>
+          {/each}
+          <div class="text-center pt-4">
+             <span class="inline-block w-6 h-6 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></span>
+             <p class="text-xs text-gray-400 mt-2">{translateProgressText}</p>
           </div>
-        {/if}
-      {:else if translationError}
-        <div class="text-red-500 p-4 bg-red-50 rounded-lg">{translationError}</div>
-      {:else if !loading && htmlContent}
+        </div>
+      {:else if !translatedContent && !translationLoading && !loading && htmlContent && !translationError}
         <div class="flex flex-col justify-center items-center h-64 gap-4 text-gray-400">
            <p>Waiting for translation...</p>
         </div>

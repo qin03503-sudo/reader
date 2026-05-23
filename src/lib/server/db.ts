@@ -6,3 +6,7 @@ import { env } from '$env/dynamic/private';
 // Disable prefetch as it is not supported for "Transaction" pool mode
 const queryClient = postgres(env.DATABASE_URL as string, { prepare: false });
 export const db = drizzle(queryClient, { schema });
+
+export const closeDb = async () => {
+  await queryClient.end({ timeout: 5 });
+};

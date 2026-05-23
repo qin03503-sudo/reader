@@ -31,7 +31,6 @@
   let analysisLoading = $state(false);
   let analysisData = $state<any>(null);
   let analysisError = $state('');
-  let activeListenerDisposer: (() => void) | null = null;
 
   let chapter = $derived(book?.chapters?.[currentChapterIndex]);
 
@@ -208,70 +207,49 @@
   });
 
 
-  const isElementInViewport = (el: HTMLElement, container: HTMLElement) => {
-    const elRect = el.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-    return (
-      elRect.top >= containerRect.top &&
-      elRect.bottom <= containerRect.bottom
-    );
-  };
-
   const getSyncPair = (syncId: string): HTMLElement[] => {
     if (!syncId) return [];
     const selector = `[data-sync-id="${syncId}"]`;
-    const originalMatches = originalContainer
-      ? Array.from(originalContainer.querySelectorAll<HTMLElement>(selector))
-      : [];
-    const translatedMatches = translatedContainer
-      ? Array.from(translatedContainer.querySelectorAll<HTMLElement>(selector))
-      : [];
-    return [...originalMatches, ...translatedMatches];
+    return [
+      ...(originalContainer?.querySelectorAll<HTMLElement>(selector) || []),
+      ...(translatedContainer?.querySelectorAll<HTMLElement>(selector) || [])
+    ];
   };
 
-  const handleMouseOver = (e: MouseEvent) => {
+  const getTargetElement = (e: Event): HTMLElement | null => {
     const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
-    if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return;
+    if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return null;
+    return el;
+  };
+
+  const handleMouseOver = (e: Event) => {
+    const el = getTargetElement(e);
+    if (!el) return;
+    const syncId = el.getAttribute('data-sync-id');
+    if (syncId) getSyncPair(syncId).forEach(el => el.classList.add('active'));
+  };
+
+  const handleMouseOut = (e: Event) => {
+    const el = getTargetElement(e);
+    if (!el) return;
+    const syncId = el.getAttribute('data-sync-id');
+    if (syncId) getSyncPair(syncId).forEach(el => el.classList.remove('active'));
+  };
+
+  const handleClick = async (e: Event) => {
+    const el = getTargetElement(e);
+    if (!el) return;
 
     const syncId = el.getAttribute('data-sync-id');
     if (!syncId) return;
 
-    const elements = getSyncPair(syncId);
-    elements.forEach((element) => element.classList.add('active'));
-
-  };
-
-  const handleMouseOut = (e: MouseEvent) => {
-    const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
-    if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return;
-
-    const syncId = el.getAttribute('data-sync-id');
-    if (!syncId) return;
-
-    const elements = getSyncPair(syncId);
-    elements.forEach((element) => element.classList.remove('active'));
-  };
-
-  const handleClick = async (e: MouseEvent) => {
-    const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
-    if (!el || (!originalContainer?.contains(el) && !translatedContainer?.contains(el))) return;
-
-    const syncId = el.getAttribute('data-sync-id');
-    if (!syncId) return;
-
-
-    const elements = getSyncPair(syncId);
-    const counterpart = elements.find((element) => element !== el);
+    const counterpart = getSyncPair(syncId).find(element => element !== el);
     if (counterpart) {
-      const container = originalContainer?.contains(counterpart) ? originalContainer : translatedContainer;
-      const scrollableParent = container?.parentElement;
-      if (scrollableParent && !isElementInViewport(counterpart, scrollableParent)) {
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        counterpart.scrollIntoView({
-          block: 'center',
-          behavior: prefersReducedMotion ? 'instant' : 'smooth'
-        });
-      }
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      counterpart.scrollIntoView({
+        block: 'nearest',
+        behavior: prefersReducedMotion ? 'instant' : 'smooth'
+      });
     }
 
     const sentence = el.textContent || '';
@@ -306,50 +284,6 @@
     }
   };
 
-  function attachEventListeners() {
-    if (activeListenerDisposer) {
-      activeListenerDisposer();
-      activeListenerDisposer = null;
-    }
-
-    if (!originalContainer || !translatedContainer) return null;
-
-    originalContainer.addEventListener('mouseover', handleMouseOver);
-    originalContainer.addEventListener('mouseout', handleMouseOut);
-    originalContainer.addEventListener('click', handleClick);
-    translatedContainer.addEventListener('mouseover', handleMouseOver);
-    translatedContainer.addEventListener('mouseout', handleMouseOut);
-    translatedContainer.addEventListener('click', handleClick);
-
-    const boundOriginal = originalContainer;
-    const boundTranslated = translatedContainer;
-    const disposer = () => {
-      boundOriginal.removeEventListener('mouseover', handleMouseOver);
-      boundOriginal.removeEventListener('mouseout', handleMouseOut);
-      boundOriginal.removeEventListener('click', handleClick);
-      boundTranslated.removeEventListener('mouseover', handleMouseOver);
-      boundTranslated.removeEventListener('mouseout', handleMouseOut);
-      boundTranslated.removeEventListener('click', handleClick);
-    };
-    activeListenerDisposer = disposer;
-    return disposer;
-  }
-
-  $effect(() => {
-    if (!originalContainer || !translatedContainer) {
-      if (activeListenerDisposer) {
-        activeListenerDisposer();
-        activeListenerDisposer = null;
-      }
-      return;
-    }
-
-    const disposer = attachEventListeners();
-    return () => {
-      disposer?.();
-      if (activeListenerDisposer === disposer) activeListenerDisposer = null;
-    };
-  });
 
 </script>
 
@@ -422,7 +356,7 @@
       {:else if error}
         <div class="text-red-500 p-4 bg-red-50 rounded-lg">{error}</div>
       {:else}
-        <div bind:this={originalContainer} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto">
+        <div role="presentation" bind:this={originalContainer} onmouseover={handleMouseOver} onmouseout={handleMouseOut} onclick={handleClick} onfocus={handleMouseOver} onblur={handleMouseOut} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto">
           {@html htmlContent}
         </div>
       {/if}
@@ -434,7 +368,7 @@
     <!-- Translated Pane -->
     <div class="w-1/2 overflow-y-auto relative p-8 bg-white/50">
       {#if translatedContent}
-        <div bind:this={translatedContainer} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto" dir="rtl">
+        <div role="presentation" bind:this={translatedContainer} onmouseover={handleMouseOver} onmouseout={handleMouseOut} onclick={handleClick} onfocus={handleMouseOver} onblur={handleMouseOut} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto" dir="rtl">
           {@html translatedContent}
         </div>
         {#if translationLoading && completedTranslationParts < totalTranslationParts}

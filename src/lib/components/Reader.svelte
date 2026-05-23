@@ -192,6 +192,16 @@
     if (chapter) loadChapter();
   });
 
+
+  const isElementInViewport = (el: HTMLElement, container: HTMLElement) => {
+    const elRect = el.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    return (
+      elRect.top >= containerRect.top &&
+      elRect.bottom <= containerRect.bottom
+    );
+  };
+
   const getSyncPair = (syncId: string): HTMLElement[] => {
     if (!syncId) return [];
     const selector = `[data-sync-id="${syncId}"]`;
@@ -213,8 +223,7 @@
 
     const elements = getSyncPair(syncId);
     elements.forEach((element) => element.classList.add('active'));
-    const counterpart = elements.find((element) => element !== el);
-    counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
   };
 
   const handleMouseOut = (e: MouseEvent) => {
@@ -234,6 +243,20 @@
 
     const syncId = el.getAttribute('data-sync-id');
     if (!syncId) return;
+
+
+    const elements = getSyncPair(syncId);
+    const counterpart = elements.find((element) => element !== el);
+    if (counterpart) {
+      const container = originalContainer?.contains(counterpart) ? originalContainer : translatedContainer;
+      if (container && !isElementInViewport(counterpart, container)) {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        counterpart.scrollIntoView({
+          block: 'nearest',
+          behavior: prefersReducedMotion ? 'instant' : 'smooth'
+        });
+      }
+    }
 
     const sentence = el.textContent || '';
     if (!sentence.trim()) return;

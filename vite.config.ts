@@ -18,6 +18,7 @@ export default defineConfig({
 	},
 	ssr: {
 		noExternal: process.env.NODE_ENV === 'production' ? true : [],
+		external: ['jsdom', 'os', 'fs', 'net', 'tls', 'crypto', 'stream', 'perf_hooks', 'path', 'fs/promises', 'https', 'util', 'http'],
 		target: 'node'
 	},
 	server: {

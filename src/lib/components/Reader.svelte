@@ -21,6 +21,8 @@
   let translatedContainer = $state<HTMLDivElement | null>(null);
   let selectedModel = $state('gemini-2.5-flash');
   let settings = $state<any>(null);
+  let translateProgressText = $state('Preparing translation…');
+  const prefetchedTranslations = new Map<number, { originalHtml: string; translatedHtml: string }>();
 
   // Analysis / Dictionary state
   let showAnalysis = $state(false);
@@ -59,8 +61,16 @@
       const data = await res.json();
       if (res.ok) {
         htmlContent = data.html;
-        // Start translation
-        translateChapter(data.html);
+        const prefetched = prefetchedTranslations.get(currentChapterIndex);
+        if (prefetched) {
+          htmlContent = prefetched.originalHtml;
+          translatedContent = prefetched.translatedHtml;
+          translationLoading = false;
+          prefetchedTranslations.delete(currentChapterIndex);
+        } else {
+          translateChapter(data.html);
+        }
+        prefetchNextChapter();
       } else {
         error = data.error;
       }
@@ -73,8 +83,15 @@
 
   async function translateChapter(sourceHtml: string) {
       translationLoading = true;
+      translateProgressText = 'Analyzing chapter structure…';
       translationError = '';
+      let progressTimer: ReturnType<typeof setInterval> | null = null;
       try {
+          progressTimer = setInterval(() => {
+              if (translateProgressText === 'Analyzing chapter structure…') translateProgressText = 'Translating key passages…';
+              else if (translateProgressText === 'Translating key passages…') translateProgressText = 'Aligning sentence sync markers…';
+              else translateProgressText = 'Finalizing bilingual layout…';
+          }, 1600);
           const res = await fetch('/api/translate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -96,8 +113,39 @@
       } catch (e) {
           translationError = 'Failed to connect to translation service';
       } finally {
+          if (progressTimer) clearInterval(progressTimer);
           translationLoading = false;
           attachEventListeners();
+      }
+  }
+
+  async function prefetchNextChapter() {
+      const nextIndex = currentChapterIndex + 1;
+      const nextChapter = book?.chapters?.[nextIndex];
+      if (!nextChapter || prefetchedTranslations.has(nextIndex)) return;
+      try {
+          const chapterRes = await fetch(`/api/chapter?bookId=${book.id}&href=${encodeURIComponent(nextChapter.href)}`);
+          if (!chapterRes.ok) return;
+          const chapterData = await chapterRes.json();
+          const translateRes = await fetch('/api/translate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  html: chapterData.html,
+                  targetLanguage,
+                  model: selectedModel,
+                  bookTitle: book?.title,
+                  chapterTitle: nextChapter?.title
+              })
+          });
+          if (!translateRes.ok) return;
+          const translated = await translateRes.json();
+          prefetchedTranslations.set(nextIndex, {
+              originalHtml: translated.originalHtml,
+              translatedHtml: translated.translatedHtml
+          });
+      } catch {
+          // Silent background prefetch failure.
       }
   }
 
@@ -126,6 +174,8 @@
                 if (syncId) {
                     const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
                     elements.forEach(el => el.classList.add('active'));
+                    const counterpart = Array.from(elements).find((el) => el !== target) as HTMLElement | undefined;
+                    counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
                 }
             }
         };
@@ -289,8 +339,13 @@
     <div class="w-1/2 overflow-y-auto relative p-8 bg-white/50">
       {#if translationLoading}
         <div class="flex flex-col justify-center items-center h-64 gap-4">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            <p class="text-sm text-gray-500">Translating to {targetLanguage}...</p>
+            <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+            <p class="text-sm text-gray-500">{translateProgressText}</p>
+            <div class="flex gap-1">
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.2s]"></span>
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-bounce [animation-delay:-0.1s]"></span>
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-bounce"></span>
+            </div>
         </div>
       {:else if translationError}
         <div class="text-red-500 p-4 bg-red-50 rounded-lg">{translationError}</div>

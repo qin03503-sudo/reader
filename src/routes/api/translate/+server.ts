@@ -11,6 +11,11 @@ type TranslationResult = {
     translated_html_with_spans: string;
 };
 
+type ProtectedBlock = {
+    token: string;
+    html: string;
+};
+
 async function fetchOpenAIFormat(url: string, key: string, model: string, prompt: string) {
     const response = await fetch(url, {
         method: 'POST',
@@ -85,6 +90,25 @@ function splitHtmlIntoTranslatableParts(html: string, maxPartLength = 2500): str
 
 function hashPart(partHtml: string, targetLanguage: string, model: string): string {
     return createHash('sha256').update(`${model}::${targetLanguage}::${partHtml}`).digest('hex');
+}
+
+function protectNonTranslatableBlocks(html: string): { sanitizedHtml: string; blocks: ProtectedBlock[] } {
+    const blocks: ProtectedBlock[] = [];
+    let index = 0;
+    const blockRegex = /<(table|figure)\b[\s\S]*?<\/\1>|<img\b[^>]*\/?>/gi;
+    const sanitizedHtml = html.replace(blockRegex, (match) => {
+        const token = `__NON_TRANSLATABLE_BLOCK_${index++}__`;
+        blocks.push({ token, html: match });
+        return `<span data-non-translatable="${token}"></span>`;
+    });
+    return { sanitizedHtml, blocks };
+}
+
+function restoreProtectedBlocks(html: string, blocks: ProtectedBlock[]): string {
+    return blocks.reduce((acc, block) => {
+        const placeholder = `<span data-non-translatable="${block.token}"></span>`;
+        return acc.split(placeholder).join(block.html);
+    }, html);
 }
 
 function buildPrompt(partHtml: string, targetLanguage: string, bookTitle?: string, chapterTitle?: string) {
@@ -179,7 +203,8 @@ export async function POST({ request }) {
         const translatedParts: { original: string; translated: string; }[] = [];
 
         for (const part of parts) {
-            const partHash = hashPart(part, targetLanguage, partModel);
+            const { sanitizedHtml, blocks } = protectNonTranslatableBlocks(part);
+            const partHash = hashPart(sanitizedHtml, targetLanguage, partModel);
 
             const cacheKey = `hash:${partHash}::`;
             const cached = await db.query.translationCache.findFirst({
@@ -195,17 +220,19 @@ export async function POST({ request }) {
                 continue;
             }
 
-            const prompt = buildPrompt(part, targetLanguage, bookTitle, chapterTitle);
+            const prompt = buildPrompt(sanitizedHtml, targetLanguage, bookTitle, chapterTitle);
             const result = await translateWithModel(model, currentSettings, prompt);
+            const restoredOriginal = restoreProtectedBlocks(result.original_html_with_spans, blocks);
+            const restoredTranslated = restoreProtectedBlocks(result.translated_html_with_spans, blocks);
 
             await db.insert(translationCache).values({
                 originalHtml: cacheKey,
-                translatedHtml: result.translated_html_with_spans,
+                translatedHtml: restoredTranslated,
                 targetLanguage,
                 model: partModel
             });
 
-            translatedParts.push({ original: result.original_html_with_spans, translated: result.translated_html_with_spans });
+            translatedParts.push({ original: restoredOriginal, translated: restoredTranslated });
         }
 
         const originalHtml = translatedParts.map((p) => p.original).join('');

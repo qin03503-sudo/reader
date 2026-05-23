@@ -31,6 +31,7 @@
   let analysisLoading = $state(false);
   let analysisData = $state<any>(null);
   let analysisError = $state('');
+  let activeListenerDisposer: (() => void) | null = null;
 
   let chapter = $derived(book?.chapters?.[currentChapterIndex]);
 
@@ -142,7 +143,6 @@
           translationError = 'Failed to connect to translation service';
       } finally {
           translationLoading = false;
-          attachEventListeners();
       }
   }
 
@@ -192,95 +192,111 @@
     if (chapter) loadChapter();
   });
 
+  const handleMouseOver = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('sync-hover')) {
+      const syncId = target.getAttribute('data-sync-id');
+      if (syncId) {
+        const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
+        elements.forEach(el => el.classList.add('active'));
+        const counterpart = Array.from(elements).find((el) => el !== target) as HTMLElement | undefined;
+        counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  };
+
+  const handleMouseOut = (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('sync-hover')) {
+      const syncId = target.getAttribute('data-sync-id');
+      if (syncId) {
+        const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
+        elements.forEach(el => el.classList.remove('active'));
+      }
+    }
+  };
+
+  const handleClick = async (e: MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.classList.contains('sync-hover')) {
+      const sentence = target.textContent || '';
+      if (!sentence.trim()) return;
+
+      showAnalysis = true;
+      analysisLoading = true;
+      analysisData = null;
+      analysisError = '';
+
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sentence,
+            targetLanguage,
+            model: selectedModel,
+            context: book?.title + " - " + chapter?.title
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          analysisData = data;
+        } else {
+          analysisError = data.error || 'Analysis failed';
+        }
+      } catch (err) {
+        analysisError = 'Failed to connect';
+      } finally {
+        analysisLoading = false;
+      }
+    }
+  };
+
   function attachEventListeners() {
-    setTimeout(() => {
-        const handleMouseOver = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.classList.contains('sync-hover')) {
-                const syncId = target.getAttribute('data-sync-id');
-                if (syncId) {
-                    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
-                    elements.forEach(el => el.classList.add('active'));
-                    const counterpart = Array.from(elements).find((el) => el !== target) as HTMLElement | undefined;
-                    counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                }
-            }
-        };
+    if (activeListenerDisposer) {
+      activeListenerDisposer();
+      activeListenerDisposer = null;
+    }
 
-        const handleMouseOut = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.classList.contains('sync-hover')) {
-                const syncId = target.getAttribute('data-sync-id');
-                if (syncId) {
-                    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
-                    elements.forEach(el => el.classList.remove('active'));
-                }
-            }
-        };
+    if (!originalContainer || !translatedContainer) return null;
 
-        // Note: The dictionary click event will be added later
+    originalContainer.addEventListener('mouseover', handleMouseOver);
+    originalContainer.addEventListener('mouseout', handleMouseOut);
+    originalContainer.addEventListener('click', handleClick);
+    translatedContainer.addEventListener('mouseover', handleMouseOver);
+    translatedContainer.addEventListener('mouseout', handleMouseOut);
+    translatedContainer.addEventListener('click', handleClick);
 
-        const handleClick = async (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.classList.contains('sync-hover')) {
-                const sentence = target.textContent || '';
-                if (!sentence.trim()) return;
-
-                showAnalysis = true;
-                analysisLoading = true;
-                analysisData = null;
-                analysisError = '';
-
-                try {
-                    const res = await fetch('/api/analyze', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sentence,
-                            targetLanguage,
-                            model: selectedModel,
-                            context: book?.title + " - " + chapter?.title
-                        })
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
-                        analysisData = data;
-                    } else {
-                        analysisError = data.error || 'Analysis failed';
-                    }
-                } catch (err) {
-                    analysisError = 'Failed to connect';
-                } finally {
-                    analysisLoading = false;
-                }
-            }
-        };
-
-        if (originalContainer) {
-            originalContainer.addEventListener('mouseover', handleMouseOver);
-            originalContainer.addEventListener('mouseout', handleMouseOut);
-            originalContainer.addEventListener('click', handleClick);
-        }
-        if (translatedContainer) {
-            translatedContainer.addEventListener('mouseover', handleMouseOver);
-            translatedContainer.addEventListener('mouseout', handleMouseOut);
-            translatedContainer.addEventListener('click', handleClick);
-        }
-
-        return () => {
-            if (originalContainer) {
-                originalContainer.removeEventListener('mouseover', handleMouseOver);
-                originalContainer.removeEventListener('mouseout', handleMouseOut);
-                originalContainer.removeEventListener('click', handleClick);
-            }
-            if (translatedContainer) {
-                translatedContainer.removeEventListener('mouseover', handleMouseOver);
-                translatedContainer.removeEventListener('mouseout', handleMouseOut);
-                translatedContainer.removeEventListener('click', handleClick);
-            }
-        };
-    }, 100);
+    const boundOriginal = originalContainer;
+    const boundTranslated = translatedContainer;
+    const disposer = () => {
+      boundOriginal.removeEventListener('mouseover', handleMouseOver);
+      boundOriginal.removeEventListener('mouseout', handleMouseOut);
+      boundOriginal.removeEventListener('click', handleClick);
+      boundTranslated.removeEventListener('mouseover', handleMouseOver);
+      boundTranslated.removeEventListener('mouseout', handleMouseOut);
+      boundTranslated.removeEventListener('click', handleClick);
+    };
+    activeListenerDisposer = disposer;
+    return disposer;
   }
+
+  $effect(() => {
+    const ready = !!htmlContent && !!translatedContent;
+    if (!ready || !originalContainer || !translatedContainer) {
+      if (activeListenerDisposer) {
+        activeListenerDisposer();
+        activeListenerDisposer = null;
+      }
+      return;
+    }
+
+    const disposer = attachEventListeners();
+    return () => {
+      disposer?.();
+      if (activeListenerDisposer === disposer) activeListenerDisposer = null;
+    };
+  });
 
 </script>
 

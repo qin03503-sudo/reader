@@ -1,5 +1,6 @@
 import * as Minio from 'minio';
 import { env } from '$env/dynamic/private';
+import { building } from '$app/environment';
 
 const minioClient = new Minio.Client({
     endPoint: env.MINIO_ENDPOINT || '127.0.0.1',
@@ -25,6 +26,8 @@ async function ensureBucketExists() {
 }
 
 // Ensure the bucket exists when the module is loaded
-ensureBucketExists();
+if (!building) {
+    ensureBucketExists();
+}
 
 export { minioClient, bucketName };

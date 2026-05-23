@@ -2,7 +2,7 @@ import * as Minio from 'minio';
 import { env } from '$env/dynamic/private';
 
 const minioClient = new Minio.Client({
-    endPoint: env.MINIO_ENDPOINT || 'localhost',
+    endPoint: env.MINIO_ENDPOINT || '127.0.0.1',
     port: env.MINIO_PORT ? parseInt(env.MINIO_PORT, 10) : 9000,
     useSSL: env.MINIO_USE_SSL === 'true',
     accessKey: env.MINIO_ACCESS_KEY || 'minioadmin',

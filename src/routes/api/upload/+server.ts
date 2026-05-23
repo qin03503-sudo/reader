@@ -50,14 +50,15 @@ export async function POST({ request }) {
 
         // Upload to MinIO
         const minioKey = `${hash}.epub`;
+        let minioUploaded = false;
         try {
              await minioClient.putObject(bucketName, minioKey, Buffer.from(buffer), buffer.length, {
                  'Content-Type': 'application/epub+zip'
              });
+             minioUploaded = true;
              logger.info({ minioKey, bucketName }, 'Uploaded file to MinIO');
         } catch(minioError) {
              logger.error({ err: minioError, minioKey }, 'MinIO upload error');
-             // Proceed anyway, local file is saved
         }
 
         // Save to Database
@@ -70,7 +71,7 @@ export async function POST({ request }) {
                 coverUrl: parsed.metadata.coverUrl,
                 localPath: fileName,
                 hash: hash,
-                minioKey: minioKey
+                minioKey: minioUploaded ? minioKey : null
             }).returning();
 
             const chaptersToInsert = parsed.chapters.map(ch => ({

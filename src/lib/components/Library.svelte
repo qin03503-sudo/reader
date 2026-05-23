@@ -1,6 +1,7 @@
 <script lang="ts">
   import { BookOpen, Upload, Trash2, Settings as SettingsIcon } from '@lucide/svelte';
   import { createEventDispatcher, onMount } from 'svelte';
+  import { showToast } from '$lib/stores/toast';
   
   let { globalModel = 'gemini-2.5-flash', books = [] }: { globalModel?: string, books?: any[] } = $props();
   
@@ -15,7 +16,7 @@
       const data = await res.json();
       if (data.books) books = data.books;
     } catch (e) {
-      console.error(e);
+      showToast('error', 'Failed to load books');
     }
   }
 
@@ -37,13 +38,13 @@
       
       if (res.ok) {
         await fetchBooks();
+        showToast('success', 'Book uploaded successfully');
       } else {
         const error = await res.json();
-        alert('Upload failed: ' + error.error);
+        showToast('error', error.error || 'Upload failed');
       }
     } catch (error) {
-      console.error('Error uploading:', error);
-      alert('Upload failed');
+      showToast('error', 'Upload failed');
     } finally {
       loading = false;
       if (fileInput) fileInput.value = '';
@@ -60,9 +61,10 @@
       const res = await fetch(`/api/book/${id}`, { method: 'DELETE' });
       if (res.ok) {
         books = books.filter(b => b.id !== id);
+        showToast('success', 'Book deleted');
       }
     } catch (e) {
-      console.error(e);
+      showToast('error', 'Failed to delete book');
     }
   }
 </script>

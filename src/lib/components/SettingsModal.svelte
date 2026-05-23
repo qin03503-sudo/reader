@@ -1,6 +1,7 @@
 <script lang="ts">
   import { X, CheckCircle2, AlertCircle, Play } from '@lucide/svelte';
   import { createEventDispatcher, onMount } from 'svelte';
+  import { showToast } from '$lib/stores/toast';
 
   const dispatch = createEventDispatcher();
 
@@ -62,10 +63,10 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
       });
+      showToast('success', 'Settings saved');
       dispatch('close');
     } catch (error) {
-      console.error('Error saving settings:', error);
-      alert('Failed to save settings');
+      showToast('error', 'Failed to save settings');
     } finally {
       saving = false;
     }

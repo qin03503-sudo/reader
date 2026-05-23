@@ -3,6 +3,8 @@
   import Library from '$lib/components/Library.svelte';
   import Reader from '$lib/components/Reader.svelte';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
+  import Toast from '$lib/components/Toast.svelte';
+  import { showToast } from '$lib/stores/toast';
 
   let book: any = $state(null);
   let loading = $state(true);
@@ -19,7 +21,7 @@
         }
       }
     } catch (e) {
-      console.error("Failed to load settings on mount", e);
+      showToast('error', 'Failed to load settings');
     } finally {
       loading = false;
     }
@@ -35,7 +37,7 @@
             globalModel = data.defaultModel;
         }
       })
-      .catch(console.error);
+      .catch(() => showToast('error', 'Failed to reload settings'));
   }
 
 </script>
@@ -62,3 +64,5 @@
   show={showSettings} 
   on:close={handleSettingsClose}
 />
+
+<Toast />

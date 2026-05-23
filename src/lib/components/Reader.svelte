@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ArrowLeft, BookOpen, Settings } from '@lucide/svelte';
   import { createEventDispatcher, onMount } from 'svelte';
+  import { showToast } from '$lib/stores/toast';
 
   let { book = null, globalModel = 'gemini-2.5-flash' }: { book?: any, globalModel?: string } = $props();
   
@@ -15,16 +16,25 @@
   let targetLanguage = $state('fa');
   let readerContainer = $state<HTMLDivElement | null>(null);
   let selectedModel = $state('gemini-2.5-flash');
+  let settings = $state<any>(null);
 
   let chapter = $derived(book?.chapters?.[currentChapterIndex]);
 
-  const models = [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-    { id: 'custom:deepseek-chat', name: 'DeepSeek V3 (Custom)' },
-    { id: 'custom:deepseek-reasoner', name: 'DeepSeek R1 (Custom)' },
-    { id: 'litellm:deepseek-chat', name: 'DeepSeek V3 (LiteLLM)' },
-    { id: 'openrouter:deepseek/deepseek-chat', name: 'DeepSeek V3 (OpenRouter)' }
-  ];
+  let models = $derived.by(() => {
+    const list: { id: string; name: string }[] = [
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' }
+    ];
+    if (settings?.openaiBaseUrl && settings?.openaiModel) {
+      list.push({ id: 'custom', name: `Custom OpenAI (${settings.openaiModel})` });
+    }
+    if (settings?.litellmBaseUrl && settings?.litellmModel) {
+      list.push({ id: 'litellm', name: `LiteLLM (${settings.litellmModel})` });
+    }
+    if (settings?.openrouterKey && settings?.openrouterModel) {
+      list.push({ id: 'openrouter', name: `OpenRouter (${settings.openrouterModel})` });
+    }
+    return list;
+  });
 
   async function loadChapter() {
     if (!chapter) return;
@@ -48,10 +58,19 @@
     }
   }
 
-  $effect(() => {
-    if (globalModel && !selectedModel) {
-        selectedModel = globalModel;
+  onMount(async () => {
+    selectedModel = globalModel || 'gemini-2.5-flash';
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) {
+        settings = await res.json();
+      }
+    } catch(e) {
+      showToast('error', 'Failed to load settings');
     }
+  });
+
+  $effect(() => {
     if (chapter) loadChapter();
   });
 

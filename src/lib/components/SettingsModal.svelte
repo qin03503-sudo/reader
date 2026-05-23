@@ -17,7 +17,11 @@
     litellmModel: 'deepseek-chat',
     openrouterKey: '',
     openrouterModel: 'deepseek/deepseek-chat',
-    defaultModel: 'gemini-2.5-flash'
+    defaultModel: 'gemini-2.5-flash',
+    maxRetries: 3,
+    baseDelay: 2000,
+    maxDelay: 30000,
+    concurrencyLimit: 5
   });
 
   let saving = $state(false);
@@ -52,6 +56,10 @@
       if (!settings.litellmModel) settings.litellmModel = 'deepseek-chat';
       if (!settings.openrouterModel) settings.openrouterModel = 'deepseek/deepseek-chat';
       if (!settings.defaultModel) settings.defaultModel = 'gemini-2.5-flash';
+      if (settings.maxRetries === undefined) settings.maxRetries = 3;
+      if (settings.baseDelay === undefined) settings.baseDelay = 2000;
+      if (settings.maxDelay === undefined) settings.maxDelay = 30000;
+      if (settings.concurrencyLimit === undefined) settings.concurrencyLimit = 5;
     } catch(e) {}
   });
 
@@ -171,6 +179,69 @@
               <option value={opt.id}>{opt.name}</option>
             {/each}
           </select>
+        </div>
+
+
+        <!-- Advanced Translation Settings -->
+        <div class="space-y-4 bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm">
+          <h3 class="font-semibold text-lg text-gray-900">Advanced API Settings</h3>
+          <p class="text-sm text-gray-500 mb-2">Configure retry logic and concurrency for API calls.</p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="maxRetries">
+                Max Retries
+              </label>
+              <input
+                id="maxRetries"
+                type="number"
+                min="0"
+                bind:value={settings.maxRetries}
+                class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="concurrencyLimit">
+                Concurrency Limit
+              </label>
+              <input
+                id="concurrencyLimit"
+                type="number"
+                min="1"
+                bind:value={settings.concurrencyLimit}
+                class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="baseDelay">
+                Base Delay (ms)
+              </label>
+              <input
+                id="baseDelay"
+                type="number"
+                min="100"
+                step="100"
+                bind:value={settings.baseDelay}
+                class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1.5" for="maxDelay">
+                Max Delay (ms)
+              </label>
+              <input
+                id="maxDelay"
+                type="number"
+                min="1000"
+                step="1000"
+                bind:value={settings.maxDelay}
+                class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+              />
+            </div>
+          </div>
         </div>
 
         <!-- Custom OpenAI -->

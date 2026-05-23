@@ -84,7 +84,7 @@
     }
   }
 
-  function splitHtmlIntoClientParts(html: string, maxPartLength = 1500): string[] {
+  function splitHtmlIntoClientParts(html: string, maxPartLength = 600): string[] {
     const blockRegex = /(<(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)[^>]*>[\s\S]*?<\/(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)>)/gi;
     const blocks = html.match(blockRegex);
     if (!blocks || blocks.length === 0) return [html];
@@ -109,7 +109,7 @@
       translatedContent = '';
       completedTranslationParts = 0;
       try {
-          const parts = splitHtmlIntoClientParts(sourceHtml, 1200);
+          const parts = splitHtmlIntoClientParts(sourceHtml, 800);
           totalTranslationParts = parts.length;
           const translatedParts: string[] = [];
           const originalParts: string[] = [];
@@ -134,7 +134,7 @@
             }
 
             // Prefix sync ids to avoid collisions across parts
-            const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="part-${i}-$1"`);
+            const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="${i}_$1"`);
             originalParts.push(prefixIds(data.originalHtml));
             translatedParts.push(prefixIds(data.translatedHtml));
 
@@ -158,7 +158,7 @@
           if (!chapterRes.ok) return;
           const chapterData = await chapterRes.json();
 
-          const parts = splitHtmlIntoClientParts(chapterData.html, 1200);
+          const parts = splitHtmlIntoClientParts(chapterData.html, 800);
           const translatedParts = [];
           const originalParts = [];
 
@@ -177,7 +177,7 @@
               if (!translateRes.ok) return;
               const translated = await translateRes.json();
 
-              const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="part-${i}-$1"`);
+              const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="${i}_$1"`);
               originalParts.push(prefixIds(translated.originalHtml));
               translatedParts.push(prefixIds(translated.translatedHtml));
           }
@@ -336,8 +336,7 @@
   }
 
   $effect(() => {
-    const ready = !!htmlContent && !!translatedContent;
-    if (!ready || !originalContainer || !translatedContainer) {
+    if (!originalContainer || !translatedContainer) {
       if (activeListenerDisposer) {
         activeListenerDisposer();
         activeListenerDisposer = null;
@@ -434,20 +433,11 @@
 
     <!-- Translated Pane -->
     <div class="w-1/2 overflow-y-auto relative p-8 bg-white/50">
-      {#if translationLoading}
-        <div class="flex flex-col justify-center items-center h-64 gap-4">
-            <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-            <p class="text-sm text-gray-500">{translateProgressText}</p>
-            <div class="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div class="h-full bg-blue-500 transition-all duration-300" style={`width: ${totalTranslationParts > 0 ? (completedTranslationParts / totalTranslationParts) * 100 : 5}%`}></div>
-            </div>
-            <p class="text-xs text-gray-400">{completedTranslationParts}/{totalTranslationParts || 1} parts completed</p>
-        </div>
-      {:else if translatedContent}
+      {#if translatedContent}
         <div bind:this={translatedContainer} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto" dir="rtl">
           {@html translatedContent}
         </div>
-        {#if completedTranslationParts < totalTranslationParts}
+        {#if translationLoading && completedTranslationParts < totalTranslationParts}
           <div class="mt-6 space-y-3">
             {#each Array(Math.min(3, totalTranslationParts - completedTranslationParts)) as _}
               <div class="animate-pulse space-y-2">
@@ -457,12 +447,17 @@
               </div>
             {/each}
           </div>
+          <div class="flex items-center gap-3 mt-4 text-sm text-gray-500">
+            <div class="w-4 h-4 border-2 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+            <span>Translating part {completedTranslationParts + 1} of {totalTranslationParts}...</span>
+          </div>
         {/if}
       {:else if translationError}
         <div class="text-red-500 p-4 bg-red-50 rounded-lg">{translationError}</div>
       {:else if !loading && htmlContent}
         <div class="flex flex-col justify-center items-center h-64 gap-4 text-gray-400">
-           <p>Waiting for translation...</p>
+           <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+           <p>Preparing translation...</p>
         </div>
       {/if}
     </div>

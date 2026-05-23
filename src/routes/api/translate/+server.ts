@@ -54,10 +54,23 @@ async function fetchOpenAIFormat(url: string, key: string, model: string, prompt
     }
 
     const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-    if (!content) throw new Error("No response text from model");
+    const content =
+        data?.choices?.[0]?.message?.content ??
+        data?.choices?.[0]?.text ??
+        data?.output?.[0]?.content?.find?.((item: any) => item?.type === 'output_text')?.text ??
+        data?.response?.output_text;
 
-    return JSON.parse(content);
+    if (!content || typeof content !== 'string') {
+        throw new Error(`Unexpected translation API response shape: ${JSON.stringify(data).slice(0, 600)}`);
+    }
+
+    try {
+        return JSON.parse(content);
+    } catch {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error('Model response was not valid JSON.');
+        return JSON.parse(jsonMatch[0]);
+    }
 }
 
 function splitHtmlIntoTranslatableParts(html: string, maxPartLength = 2500): string[] {

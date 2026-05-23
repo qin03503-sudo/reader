@@ -17,64 +17,84 @@ type ProtectedBlock = {
 };
 
 async function fetchOpenAIFormat(url: string, key: string, model: string, prompt: string) {
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${key}`
-        },
-        body: JSON.stringify({
-            model: model,
-            messages: [
-                { role: "system", content: "You are an expert translator that precisely aligns HTML sentences." },
-                { role: "user", content: prompt }
-            ],
-            response_format: {
-                type: "json_schema",
-                json_schema: {
-                    name: "translation_result",
-                    strict: false,
-                    schema: {
-                        type: "object",
-                        properties: {
-                            original_html_with_spans: { type: "string" },
-                            translated_html_with_spans: { type: "string" }
-                        },
-                        required: ["original_html_with_spans", "translated_html_with_spans"]
-                    }
+    let retries = 3;
+    let delay = 2000;
+
+    while (retries > 0) {
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${key}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        { role: "system", content: "You are an expert translator that precisely aligns HTML sentences." },
+                        { role: "user", content: prompt }
+                    ],
+                    response_format: {
+                        type: "json_schema",
+                        json_schema: {
+                            name: "translation_result",
+                            strict: false,
+                            schema: {
+                                type: "object",
+                                properties: {
+                                    original_html_with_spans: { type: "string" },
+                                    translated_html_with_spans: { type: "string" }
+                                },
+                                required: ["original_html_with_spans", "translated_html_with_spans"]
+                            }
+                        }
+                    },
+                    temperature: 0.1
+                })
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+
+                if (response.status === 429 || response.status >= 500) {
+                    throw new Error(`Rate limit or server error (${response.status}): ${errText}`);
                 }
-            },
-            temperature: 0.1
-        })
-    });
+                throw new Error(`API Error: ${errText}`);
+            }
 
-    if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API Error: ${errText}`);
+            const data = await response.json();
+
+            if (data?.error) {
+                throw new Error(data.error.message ? `API Error: ${data.error.message}` : `API Error: ${JSON.stringify(data.error)}`);
+            }
+            const content =
+                data?.choices?.[0]?.message?.content ??
+                data?.choices?.[0]?.text ??
+                data?.output?.[0]?.content?.find?.((item: any) => item?.type === 'output_text')?.text ??
+                data?.response?.output_text;
+
+            if (!content || typeof content !== 'string') {
+                throw new Error(`Unexpected translation API response shape: ${JSON.stringify(data).slice(0, 600)}`);
+            }
+
+            try {
+                return JSON.parse(content);
+            } catch {
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error('Model response was not valid JSON.');
+                return JSON.parse(jsonMatch[0]);
+            }
+        } catch (error: any) {
+            retries--;
+            if (retries === 0) {
+                throw error;
+            }
+            console.warn(`Translation API request failed (${error.message}), retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2; // Exponential backoff
+        }
     }
-
-    const data = await response.json();
-
-    if (data?.error) {
-        throw new Error(data.error.message ? `API Error: ${data.error.message}` : `API Error: ${JSON.stringify(data.error)}`);
-    }
-    const content =
-        data?.choices?.[0]?.message?.content ??
-        data?.choices?.[0]?.text ??
-        data?.output?.[0]?.content?.find?.((item: any) => item?.type === 'output_text')?.text ??
-        data?.response?.output_text;
-
-    if (!content || typeof content !== 'string') {
-        throw new Error(`Unexpected translation API response shape: ${JSON.stringify(data).slice(0, 600)}`);
-    }
-
-    try {
-        return JSON.parse(content);
-    } catch {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('Model response was not valid JSON.');
-        return JSON.parse(jsonMatch[0]);
-    }
+    throw new Error("Max retries reached");
 }
 
 function splitHtmlIntoTranslatableParts(html: string, maxPartLength = 2500): string[] {
@@ -184,26 +204,50 @@ async function translateWithModel(model: string | undefined, currentSettings: an
         throw new Error('GEMINI_API_KEY environment variable is not set.');
     }
 
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-        model: model || 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-                type: "OBJECT",
-                properties: {
-                    original_html_with_spans: { type: "STRING" },
-                    translated_html_with_spans: { type: "STRING" }
-                },
-                required: ["original_html_with_spans", "translated_html_with_spans"]
-            },
-            temperature: 0.1,
-        }
-    });
+        const ai = new GoogleGenAI({ apiKey });
 
-    if (!response.text) throw new Error("No response text");
-    return JSON.parse(response.text);
+    let retries = 3;
+    let delay = 2000;
+
+    while (retries > 0) {
+        try {
+            const response = await ai.models.generateContent({
+                model: model || 'gemini-2.5-flash',
+                contents: prompt,
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            original_html_with_spans: { type: "STRING" },
+                            translated_html_with_spans: { type: "STRING" }
+                        },
+                        required: ["original_html_with_spans", "translated_html_with_spans"]
+                    },
+                    temperature: 0.1,
+                }
+            });
+
+            if (!response.text) throw new Error("No response text");
+
+            try {
+                return JSON.parse(response.text);
+            } catch {
+                const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+                if (!jsonMatch) throw new Error('Model response was not valid JSON.');
+                return JSON.parse(jsonMatch[0]);
+            }
+        } catch (error: any) {
+             retries--;
+            if (retries === 0) {
+                throw error;
+            }
+            console.warn(`Gemini API request failed (${error.message}), retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2;
+        }
+    }
+    throw new Error("Max retries reached");
 }
 
 export async function POST({ request }) {

@@ -2,7 +2,9 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { book, chapter } from '$lib/server/schema';
 import { parseEpub } from '$lib/server/epub';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
+import { minioClient, bucketName } from '$lib/server/minio';
+import { logger } from '$lib/server/logger';
 
 const UPLOADS_DIR = './uploads';
 
@@ -12,19 +14,51 @@ export async function POST({ request }) {
         const file = formData.get('file') as File;
         
         if (!file) {
+            logger.warn('Upload attempt with no file');
             return json({ error: 'No file uploaded' }, { status: 400 });
         }
+
+        logger.info({ fileName: file.name, fileSize: file.size }, 'Received file upload');
 
         const arrayBuffer = await file.arrayBuffer();
         const buffer = new Uint8Array(arrayBuffer);
 
+        // Calculate SHA-256 hash
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hash = Buffer.from(hashBuffer).toString('hex');
+
+        // Check for deduplication
+        const existingBook = await db.query.book.findFirst({
+            where: eq(book.hash, hash),
+            with: { chapters: true }
+        });
+
+        if (existingBook) {
+             logger.info({ bookId: existingBook.id, hash }, 'File already exists, returning existing book');
+             return json({ success: true, book: existingBook, message: 'File already exists' });
+        }
+
         // Parse EPUB to extract metadata and chapters
+        logger.debug({ fileName: file.name }, 'Parsing EPUB');
         const parsed = await parseEpub(buffer);
         
-        // Save file locally using Bun
+        // Save file locally using Bun (fallback)
         const uuid = crypto.randomUUID();
         const fileName = `${uuid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
         await Bun.write(`${UPLOADS_DIR}/${fileName}`, buffer);
+        logger.debug({ localPath: fileName }, 'Saved file locally');
+
+        // Upload to MinIO
+        const minioKey = `${hash}.epub`;
+        try {
+             await minioClient.putObject(bucketName, minioKey, Buffer.from(buffer), buffer.length, {
+                 'Content-Type': 'application/epub+zip'
+             });
+             logger.info({ minioKey, bucketName }, 'Uploaded file to MinIO');
+        } catch(minioError) {
+             logger.error({ err: minioError, minioKey }, 'MinIO upload error');
+             // Proceed anyway, local file is saved
+        }
 
         // Save to Database
         let newBookWithChapters;
@@ -35,6 +69,8 @@ export async function POST({ request }) {
                 author: parsed.metadata.author,
                 coverUrl: parsed.metadata.coverUrl,
                 localPath: fileName,
+                hash: hash,
+                minioKey: minioKey
             }).returning();
 
             const chaptersToInsert = parsed.chapters.map(ch => ({
@@ -49,11 +85,12 @@ export async function POST({ request }) {
             }
 
             newBookWithChapters = { ...newBook, chapters: insertedChapters };
+            logger.info({ bookId: newBook.id, title: newBook.title, chaptersCount: chaptersToInsert.length }, 'Book saved to database');
         });
 
         return json({ success: true, book: newBookWithChapters });
     } catch (error: any) {
-        console.error("Upload error:", error);
+        logger.error({ err: error }, 'Upload failed');
         return json({ error: error.message || 'Upload failed' }, { status: 500 });
     }
 }
@@ -64,8 +101,10 @@ export async function GET() {
             with: { chapters: true },
             orderBy: [desc(book.createdAt)]
         });
+        logger.debug({ count: books.length }, 'Fetched books list');
         return json({ books });
     } catch (error: any) {
+        logger.error({ err: error }, 'Failed to fetch books list');
         return json({ error: error.message }, { status: 500 });
     }
 }

@@ -7,6 +7,8 @@ export const book = pgTable('book', {
   author: text('author').notNull(),
   coverUrl: text('cover_url'),
   localPath: text('local_path').notNull(),
+  hash: text('hash').unique(),
+  minioKey: text('minio_key'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

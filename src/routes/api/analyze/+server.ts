@@ -69,7 +69,7 @@ Ensure the output is ONLY valid JSON.`;
         let analysis;
 
         if (model === 'custom' || model?.startsWith('custom:')) {
-            const actualModel = model.replace('custom:', '') || currentSettings?.openaiModel || 'deepseek-chat';
+            const actualModel = (model === 'custom' ? '' : model.replace('custom:', '')) || currentSettings?.openaiModel || 'deepseek-chat';
             if (!currentSettings?.openaiBaseUrl || !currentSettings?.openaiKeys?.length) {
                  return json({ error: 'Custom OpenAI settings missing' }, { status: 400 });
             }
@@ -77,7 +77,7 @@ Ensure the output is ONLY valid JSON.`;
             analysis = await fetchOpenAIApi(url, currentSettings.openaiKeys[0], actualModel, prompt);
 
         } else if (model === 'litellm' || model?.startsWith('litellm:')) {
-            const actualModel = model.replace('litellm:', '') || currentSettings?.litellmModel || 'deepseek-chat';
+            const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings?.litellmModel || 'deepseek-chat';
             if (!currentSettings?.litellmBaseUrl || !currentSettings?.litellmKeys?.length) {
                  return json({ error: 'LiteLLM settings missing' }, { status: 400 });
             }
@@ -85,7 +85,7 @@ Ensure the output is ONLY valid JSON.`;
             analysis = await fetchOpenAIApi(url, currentSettings.litellmKeys[0], actualModel, prompt);
 
         } else if (model === 'openrouter' || model?.startsWith('openrouter:')) {
-            const actualModel = model.replace('openrouter:', '') || currentSettings?.openrouterModel || 'deepseek/deepseek-chat';
+            const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings?.openrouterModel || 'deepseek/deepseek-chat';
             if (!currentSettings?.openrouterKey) {
                  return json({ error: 'OpenRouter settings missing' }, { status: 400 });
             }

@@ -33,6 +33,11 @@
   let analysisError = $state('');
   let activeListenerDisposer: (() => void) | null = null;
 
+  const COUNTERPART_SCROLL_THROTTLE_MS = 250;
+  let autoScrollMode = $state<'hover' | 'click'>('click');
+  let prefersReducedMotion = $state(false);
+  const lastSyncedScrollAt = new Map<string, number>();
+
   let chapter = $derived(book?.chapters?.[currentChapterIndex]);
 
   let models = $derived.by(() => {
@@ -178,6 +183,14 @@
 
   onMount(async () => {
     selectedModel = globalModel || 'gemini-2.5-flash';
+
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotionPreference = () => {
+      prefersReducedMotion = reducedMotionQuery.matches;
+    };
+    updateMotionPreference();
+    reducedMotionQuery.addEventListener('change', updateMotionPreference);
+
     try {
       const res = await fetch('/api/settings');
       if (res.ok) {
@@ -186,11 +199,36 @@
     } catch(e) {
       showToast('error', 'Failed to load settings');
     }
+
+    return () => {
+      reducedMotionQuery.removeEventListener('change', updateMotionPreference);
+    };
   });
 
   $effect(() => {
     if (chapter) loadChapter();
   });
+
+
+  const isElementOutsideViewport = (element: HTMLElement) => {
+    const rect = element.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    return rect.bottom < 0 || rect.top > viewportHeight;
+  };
+
+  const scrollCounterpartIfNeeded = (counterpart: HTMLElement | undefined, syncId: string) => {
+    if (!counterpart || !isElementOutsideViewport(counterpart)) return;
+
+    const now = Date.now();
+    const lastScrollAt = lastSyncedScrollAt.get(syncId) ?? 0;
+    if (now - lastScrollAt < COUNTERPART_SCROLL_THROTTLE_MS) return;
+
+    lastSyncedScrollAt.set(syncId, now);
+    counterpart.scrollIntoView({
+      block: 'nearest',
+      behavior: prefersReducedMotion ? 'auto' : 'smooth'
+    });
+  };
 
   const handleMouseOver = (e: MouseEvent) => {
     const el = (e.target as HTMLElement | null)?.closest('.sync-hover') as HTMLElement | null;
@@ -202,7 +240,9 @@
     const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
     elements.forEach((element) => element.classList.add('active'));
     const counterpart = Array.from(elements).find((element) => element !== el) as HTMLElement | undefined;
-    counterpart?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    if (autoScrollMode === 'hover') {
+      scrollCounterpartIfNeeded(counterpart, syncId);
+    }
   };
 
   const handleMouseOut = (e: MouseEvent) => {
@@ -222,6 +262,12 @@
 
     const syncId = el.getAttribute('data-sync-id');
     if (!syncId) return;
+
+    const elements = document.querySelectorAll(`[data-sync-id="${syncId}"]`);
+    const counterpart = Array.from(elements).find((element) => element !== el) as HTMLElement | undefined;
+    if (autoScrollMode === 'click') {
+      scrollCounterpartIfNeeded(counterpart, syncId);
+    }
 
     const sentence = el.textContent || '';
     if (!sentence.trim()) return;

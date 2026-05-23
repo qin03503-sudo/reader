@@ -4,7 +4,11 @@ import { settings } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { GoogleGenAI } from '@google/genai';
 
-async function fetchOpenAIApi(url: string, key: string, model: string, prompt: string) {
+async function fetchOpenAIApi(url: string, key: string, model: string, prompt: string, maxRetries: number = 3, baseDelay: number = 2000, maxDelay: number = 30000) {
+    let retries = maxRetries;
+    let delay = baseDelay;
+    while (retries > 0) {
+        try {
     const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -23,15 +27,25 @@ async function fetchOpenAIApi(url: string, key: string, model: string, prompt: s
     });
 
     if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API Error: ${errText}`);
+            const errText = await response.text();
+            throw new Error(`API Error: ${errText}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0]?.message?.content;
+        if (!content) throw new Error("No response text from model");
+
+        return JSON.parse(content);
+        } catch (error: any) {
+            if (retries === 1) {
+                throw error;
+            }
+            console.warn(`Analyze API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries - 1})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            retries--;
+            delay = Math.min(delay * 2, maxDelay);
+        }
     }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-    if (!content) throw new Error("No response text from model");
-
-    return JSON.parse(content);
 }
 
 export async function POST({ request }) {
@@ -43,6 +57,9 @@ export async function POST({ request }) {
 
     try {
         const currentSettings = await db.query.settings.findFirst({ where: eq(settings.id, 'default') });
+        const maxRetries = currentSettings?.maxRetries ?? 3;
+        const baseDelay = currentSettings?.baseDelay ?? 2000;
+        const maxDelay = currentSettings?.maxDelay ?? 30000;
 
         const prompt = `You are a linguist and language tutor.
 Analyze the following sentence for a native ${targetLanguage} speaker learning the original language.
@@ -74,7 +91,7 @@ Ensure the output is ONLY valid JSON.`;
                  return json({ error: 'Custom OpenAI settings missing' }, { status: 400 });
             }
             const url = currentSettings.openaiBaseUrl.endsWith('/') ? `${currentSettings.openaiBaseUrl}chat/completions` : `${currentSettings.openaiBaseUrl}/chat/completions`;
-            analysis = await fetchOpenAIApi(url, currentSettings.openaiKeys[0], actualModel, prompt);
+            analysis = await fetchOpenAIApi(url, currentSettings.openaiKeys[0], actualModel, prompt, maxRetries, baseDelay, maxDelay);
 
         } else if (model === 'litellm' || model?.startsWith('litellm:')) {
             const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings?.litellmModel || 'deepseek-chat';
@@ -82,14 +99,14 @@ Ensure the output is ONLY valid JSON.`;
                  return json({ error: 'LiteLLM settings missing' }, { status: 400 });
             }
             const url = currentSettings.litellmBaseUrl.endsWith('/') ? `${currentSettings.litellmBaseUrl}chat/completions` : `${currentSettings.litellmBaseUrl}/chat/completions`;
-            analysis = await fetchOpenAIApi(url, currentSettings.litellmKeys[0], actualModel, prompt);
+            analysis = await fetchOpenAIApi(url, currentSettings.litellmKeys[0], actualModel, prompt, maxRetries, baseDelay, maxDelay);
 
         } else if (model === 'openrouter' || model?.startsWith('openrouter:')) {
             const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings?.openrouterModel || 'deepseek/deepseek-chat';
             if (!currentSettings?.openrouterKey) {
                  return json({ error: 'OpenRouter settings missing' }, { status: 400 });
             }
-            analysis = await fetchOpenAIApi('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt);
+            analysis = await fetchOpenAIApi('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt, maxRetries, baseDelay, maxDelay);
 
         } else {
             // Standard Gemini
@@ -97,17 +114,33 @@ Ensure the output is ONLY valid JSON.`;
             if(!apiKey) return json({ error: 'GEMINI_API_KEY environment variable is not set.'}, { status: 500 });
 
             const ai = new GoogleGenAI({ apiKey });
-            const response = await ai.models.generateContent({
-                model: model || 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                    temperature: 0.1,
-                }
-            });
+            let retries = maxRetries;
+            let delay = baseDelay;
 
-            if (!response.text) throw new Error("No response text");
-            analysis = JSON.parse(response.text);
+            while (retries > 0) {
+                try {
+                    const response = await ai.models.generateContent({
+                        model: model || 'gemini-2.5-flash',
+                        contents: prompt,
+                        config: {
+                            responseMimeType: "application/json",
+                            temperature: 0.1,
+                        }
+                    });
+
+                    if (!response.text) throw new Error("No response text");
+                    analysis = JSON.parse(response.text);
+                    break;
+                } catch (error: any) {
+                    if (retries === 1) {
+                        throw error;
+                    }
+                    console.warn(`Gemini API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries - 1})`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    retries--;
+                    delay = Math.min(delay * 2, maxDelay);
+                }
+            }
         }
 
         return json(analysis);

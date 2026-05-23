@@ -16,9 +16,9 @@ type ProtectedBlock = {
     html: string;
 };
 
-async function fetchOpenAIFormat(url: string, key: string, model: string, prompt: string) {
-    let retries = 3;
-    let delay = 2000;
+async function fetchOpenAIFormat(url: string, key: string, model: string, prompt: string, maxRetries: number = 3, baseDelay: number = 2000, maxDelay: number = 30000) {
+    let retries = maxRetries;
+    let delay = baseDelay;
 
     while (retries > 0) {
         try {
@@ -85,13 +85,13 @@ async function fetchOpenAIFormat(url: string, key: string, model: string, prompt
                 return JSON.parse(jsonMatch[0]);
             }
         } catch (error: any) {
-            retries--;
             if (retries === 0) {
                 throw error;
             }
-            console.warn(`Translation API request failed (${error.message}), retrying in ${delay}ms...`);
+            console.warn(`Translation API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries})`);
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2; // Exponential backoff
+            retries--;
+            delay = Math.min(delay * 2, maxDelay); // Exponential backoff with max
         }
     }
     throw new Error("Max retries reached");
@@ -167,6 +167,9 @@ ${partHtml}`;
 }
 
 async function translateWithModel(model: string | undefined, currentSettings: any, prompt: string): Promise<TranslationResult> {
+    const maxRetries = currentSettings?.maxRetries ?? 3;
+    const baseDelay = currentSettings?.baseDelay ?? 2000;
+    const maxDelay = currentSettings?.maxDelay ?? 30000;
     if (model === 'custom' || model?.startsWith('custom:')) {
         if (!currentSettings || !currentSettings.openaiBaseUrl || (!currentSettings.openaiKey && (!currentSettings.openaiKeys || currentSettings.openaiKeys.length === 0))) {
             throw new Error('Custom OpenAI settings are missing.');
@@ -176,7 +179,7 @@ async function translateWithModel(model: string | undefined, currentSettings: an
         if (keys.length === 0 || !keys[0]) throw new Error('No API keys configured.');
         const actualModel = (model === 'custom' ? '' : model.replace('custom:', '')) || currentSettings.openaiModel || 'deepseek-chat';
 
-        return fetchOpenAIFormat(url, keys[0], actualModel, prompt);
+        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, maxRetries, baseDelay, maxDelay);
     }
 
     if (model === 'litellm' || model?.startsWith('litellm:')) {
@@ -188,7 +191,7 @@ async function translateWithModel(model: string | undefined, currentSettings: an
         if (keys.length === 0 || !keys[0]) throw new Error('No LiteLLM API keys configured.');
         const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings.litellmModel || 'deepseek-chat';
 
-        return fetchOpenAIFormat(url, keys[0], actualModel, prompt);
+        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, maxRetries, baseDelay, maxDelay);
     }
 
     if (model === 'openrouter' || model?.startsWith('openrouter:')) {
@@ -196,7 +199,7 @@ async function translateWithModel(model: string | undefined, currentSettings: an
             throw new Error('OpenRouter settings are missing.');
         }
         const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings.openrouterModel || 'deepseek/deepseek-chat';
-        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt);
+        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt, maxRetries, baseDelay, maxDelay);
     }
 
     const apiKey = process.env.GEMINI_API_KEY || '';
@@ -206,8 +209,8 @@ async function translateWithModel(model: string | undefined, currentSettings: an
 
         const ai = new GoogleGenAI({ apiKey });
 
-    let retries = 3;
-    let delay = 2000;
+    let retries = maxRetries;
+    let delay = baseDelay;
 
     while (retries > 0) {
         try {
@@ -238,13 +241,13 @@ async function translateWithModel(model: string | undefined, currentSettings: an
                 return JSON.parse(jsonMatch[0]);
             }
         } catch (error: any) {
-             retries--;
-            if (retries === 0) {
+            if (retries === 1) {
                 throw error;
             }
-            console.warn(`Gemini API request failed (${error.message}), retrying in ${delay}ms...`);
+            console.warn(`Gemini API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries - 1})`);
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
+            retries--;
+            delay = Math.min(delay * 2, maxDelay);
         }
     }
     throw new Error("Max retries reached");
@@ -262,9 +265,14 @@ export async function POST({ request }) {
         const partModel = model || 'gemini-2.5-flash';
         const parts = splitHtmlIntoTranslatableParts(html);
 
-        const translatedParts: { original: string; translated: string; }[] = [];
 
-        for (const part of parts) {
+        const translatedParts: { original: string; translated: string; }[] = new Array(parts.length);
+        const concurrencyLimit = currentSettings?.concurrencyLimit ?? 5;
+        let activePromises = 0;
+        let currentIndex = 0;
+
+        const processPart = async (index: number) => {
+            const part = parts[index];
             const { sanitizedHtml, blocks } = protectNonTranslatableBlocks(part);
             const partHash = hashPart(sanitizedHtml, targetLanguage, partModel);
 
@@ -278,8 +286,8 @@ export async function POST({ request }) {
             });
 
             if (cached) {
-                translatedParts.push({ original: part, translated: cached.translatedHtml });
-                continue;
+                translatedParts[index] = { original: part, translated: cached.translatedHtml };
+                return;
             }
 
             const prompt = buildPrompt(sanitizedHtml, targetLanguage, bookTitle, chapterTitle);
@@ -294,8 +302,26 @@ export async function POST({ request }) {
                 model: partModel
             });
 
-            translatedParts.push({ original: restoredOriginal, translated: restoredTranslated });
-        }
+            translatedParts[index] = { original: restoredOriginal, translated: restoredTranslated };
+        };
+
+        const executeWithConcurrency = async () => {
+            const promises: Promise<void>[] = [];
+            for (let i = 0; i < parts.length; i++) {
+                if (activePromises >= concurrencyLimit) {
+                    await Promise.race(promises);
+                }
+                activePromises++;
+                const p = processPart(i).finally(() => {
+                    activePromises--;
+                    promises.splice(promises.indexOf(p), 1);
+                });
+                promises.push(p);
+            }
+            await Promise.all(promises);
+        };
+
+        await executeWithConcurrency();
 
         const originalHtml = translatedParts.map((p) => p.original).join('');
         const translatedHtml = translatedParts.map((p) => p.translated).join('');

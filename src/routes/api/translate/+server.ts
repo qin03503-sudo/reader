@@ -57,10 +57,14 @@ export async function POST({ request }) {
     }
 
     try {
+        const htmlForTranslation = html
+            .replace(/<img[\s\S]*?>/gi, '')
+            .replace(/<figure[\s\S]*?<\/figure>/gi, '')
+            .replace(/<table[\s\S]*?<\/table>/gi, '');
         // Check cache first
         const cached = await db.query.translationCache.findFirst({
             where: and(
-                eq(translationCache.originalHtml, html),
+                eq(translationCache.originalHtml, htmlForTranslation),
                 eq(translationCache.targetLanguage, targetLanguage),
                 eq(translationCache.model, model || 'gemini-2.5-flash')
             )
@@ -93,9 +97,9 @@ Task:
 Use a simple numeric index 1, 2, 3... for the data-sync-id. The sync IDs must perfectly match between the original and translated versions so they can be highlighted together. Ensure IDs are unique.
 
 HTML Block:
-${html}`;
+${htmlForTranslation}`;
 
-        let originalHtml = html;
+        let originalHtml = htmlForTranslation;
         let translatedHtml = '';
 
         if (model === 'custom') {

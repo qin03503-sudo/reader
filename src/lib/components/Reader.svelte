@@ -21,6 +21,10 @@
   let translatedContainer = $state<HTMLDivElement | null>(null);
   let selectedModel = $state('gemini-2.5-flash');
   let settings = $state<any>(null);
+  let prefetching = $state(false);
+  let prefetchedChapterIndex = $state<number | null>(null);
+  let selectedSentence = $state('');
+  const translationPrefetchCache = new Map<number, { originalHtml: string; translatedHtml: string }>();
 
   // Analysis / Dictionary state
   let showAnalysis = $state(false);
@@ -50,6 +54,17 @@
     if (!chapter) return;
     loading = true;
     error = '';
+    const cachedPrefetch = translationPrefetchCache.get(currentChapterIndex);
+    if (cachedPrefetch) {
+      htmlContent = cachedPrefetch.originalHtml;
+      translatedContent = cachedPrefetch.translatedHtml;
+      translationLoading = false;
+      translationError = '';
+      loading = false;
+      attachEventListeners();
+      prefetchNextChapter();
+      return;
+    }
     htmlContent = '';
     translatedContent = '';
     translationError = '';
@@ -58,9 +73,9 @@
       const res = await fetch(`/api/chapter?bookId=${book.id}&href=${encodeURIComponent(chapter.href)}`);
       const data = await res.json();
       if (res.ok) {
-        htmlContent = data.html;
-        // Start translation
-        translateChapter(data.html);
+          htmlContent = data.html;
+          // Start translation
+          translateChapter(data.html, currentChapterIndex);
       } else {
         error = data.error;
       }
@@ -71,9 +86,9 @@
     }
   }
 
-  async function translateChapter(sourceHtml: string) {
-      translationLoading = true;
-      translationError = '';
+  async function translateChapter(sourceHtml: string, chapterIndex?: number, isPrefetch = false) {
+      translationLoading = !isPrefetch;
+      if (!isPrefetch) translationError = '';
       try {
           const res = await fetch('/api/translate', {
               method: 'POST',
@@ -83,22 +98,55 @@
                   targetLanguage,
                   model: selectedModel,
                   bookTitle: book?.title,
-                  chapterTitle: chapter?.title
+                  chapterTitle: chapterIndex === undefined ? chapter?.title : book?.chapters?.[chapterIndex]?.title
               })
           });
           const data = await res.json();
           if (res.ok) {
-              htmlContent = data.originalHtml; // Contains spans
-              translatedContent = data.translatedHtml; // Contains spans
-          } else {
+              if (chapterIndex !== undefined) {
+                translationPrefetchCache.set(chapterIndex, {
+                  originalHtml: data.originalHtml,
+                  translatedHtml: data.translatedHtml
+                });
+              }
+              if (!isPrefetch) {
+                htmlContent = data.originalHtml; // Contains spans
+                translatedContent = data.translatedHtml; // Contains spans
+              }
+          } else if (!isPrefetch) {
               translationError = data.error || 'Translation failed';
           }
       } catch (e) {
-          translationError = 'Failed to connect to translation service';
+          if (!isPrefetch) {
+            translationError = 'Failed to connect to translation service';
+          }
       } finally {
-          translationLoading = false;
-          attachEventListeners();
+          if (!isPrefetch) {
+            translationLoading = false;
+            attachEventListeners();
+            prefetchNextChapter();
+          }
       }
+  }
+
+  async function prefetchNextChapter() {
+    const nextIndex = currentChapterIndex + 1;
+    const nextChapter = book?.chapters?.[nextIndex];
+    if (!nextChapter || prefetching || translationPrefetchCache.has(nextIndex)) return;
+    prefetching = true;
+    prefetchedChapterIndex = null;
+    try {
+      const res = await fetch(`/api/chapter?bookId=${book.id}&href=${encodeURIComponent(nextChapter.href)}`);
+      const data = await res.json();
+      if (res.ok && data?.html) {
+        await translateChapter(data.html, nextIndex, true);
+        prefetchedChapterIndex = nextIndex;
+      }
+    } catch {
+      // Best-effort UX optimization
+    } finally {
+      prefetching = false;
+    }
   }
 
   onMount(async () => {
@@ -147,6 +195,7 @@
             const target = e.target as HTMLElement;
             if (target.classList.contains('sync-hover')) {
                 const sentence = target.textContent || '';
+                selectedSentence = sentence;
                 if (!sentence.trim()) return;
 
                 showAnalysis = true;
@@ -231,6 +280,11 @@
             <p class="text-xs text-gray-500">{chapter?.title || 'Chapter'}</p>
         </div>
       </div>
+      {#if prefetching}
+        <span class="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Preparing next chapter…</span>
+      {:else if prefetchedChapterIndex === currentChapterIndex + 1}
+        <span class="text-xs text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">Next chapter ready</span>
+      {/if}
     </div>
 
     <div class="flex items-center gap-4 relative">
@@ -325,6 +379,12 @@
                 <div class="text-red-500 text-sm p-3 bg-red-50 rounded-lg">{analysisError}</div>
             {:else if analysisData}
                 <div class="space-y-6">
+                    {#if selectedSentence}
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Selected Sentence</h4>
+                        <p class="text-gray-700 text-sm leading-relaxed">{selectedSentence}</p>
+                    </div>
+                    {/if}
                     <div>
                         <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Translation</h4>
                         <p class="text-gray-800 text-sm leading-relaxed" dir="rtl">{analysisData.translation}</p>
@@ -388,3 +448,23 @@
     </button>
   </footer>
 </div>
+
+<style>
+  :global(.sync-hover) {
+    transition: background-color 120ms ease, box-shadow 120ms ease;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  :global(.sync-hover:hover) {
+    background: #fef3c7;
+  }
+  :global(.sync-hover.active) {
+    background: #fde68a;
+    box-shadow: 0 0 0 1px #f59e0b inset;
+  }
+  :global(img.sync-hover),
+  :global(table.sync-hover),
+  :global(figure.sync-hover) {
+    display: none !important;
+  }
+</style>

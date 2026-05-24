@@ -2,8 +2,8 @@ import { json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import { translationCache, settings } from '$lib/server/schema';
 import { and, eq } from 'drizzle-orm';
-import { GoogleGenAI } from '@google/genai';
 import { createHash } from 'node:crypto';
+import { generateContentWithFallback } from '$lib/server/ai';
 
 
 type TranslationResult = {
@@ -15,87 +15,6 @@ type ProtectedBlock = {
     token: string;
     html: string;
 };
-
-async function fetchOpenAIFormat(url: string, key: string, model: string, prompt: string, maxRetries: number = 3, baseDelay: number = 2000, maxDelay: number = 30000) {
-    let retries = maxRetries;
-    let delay = baseDelay;
-
-    while (retries > 0) {
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${key}`
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [
-                        { role: "system", content: "You are an expert translator that precisely aligns HTML sentences." },
-                        { role: "user", content: prompt }
-                    ],
-                    response_format: {
-                        type: "json_schema",
-                        json_schema: {
-                            name: "translation_result",
-                            strict: false,
-                            schema: {
-                                type: "object",
-                                properties: {
-                                    original_html_with_spans: { type: "string" },
-                                    translated_html_with_spans: { type: "string" }
-                                },
-                                required: ["original_html_with_spans", "translated_html_with_spans"]
-                            }
-                        }
-                    },
-                    temperature: 0.1
-                })
-            });
-
-            if (!response.ok) {
-                const errText = await response.text();
-
-                if (response.status === 429 || response.status >= 500) {
-                    throw new Error(`Rate limit or server error (${response.status}): ${errText}`);
-                }
-                throw new Error(`API Error: ${errText}`);
-            }
-
-            const data = await response.json();
-
-            if (data?.error) {
-                throw new Error(data.error.message ? `API Error: ${data.error.message}` : `API Error: ${JSON.stringify(data.error)}`);
-            }
-            const content =
-                data?.choices?.[0]?.message?.content ??
-                data?.choices?.[0]?.text ??
-                data?.output?.[0]?.content?.find?.((item: any) => item?.type === 'output_text')?.text ??
-                data?.response?.output_text;
-
-            if (!content || typeof content !== 'string') {
-                throw new Error(`Unexpected translation API response shape: ${JSON.stringify(data).slice(0, 600)}`);
-            }
-
-            try {
-                return JSON.parse(content);
-            } catch {
-                const jsonMatch = content.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) throw new Error('Model response was not valid JSON.');
-                return JSON.parse(jsonMatch[0]);
-            }
-        } catch (error: any) {
-            if (retries === 0) {
-                throw error;
-            }
-            console.warn(`Translation API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            retries--;
-            delay = Math.min(delay * 2, maxDelay); // Exponential backoff with max
-        }
-    }
-    throw new Error("Max retries reached");
-}
 
 function splitHtmlIntoTranslatableParts(html: string, maxPartLength = 2500): string[] {
     const blockRegex = /(<(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)[^>]*>[\s\S]*?<\/(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)>)/gi;
@@ -166,93 +85,6 @@ HTML Block:
 ${partHtml}`;
 }
 
-async function translateWithModel(model: string | undefined, currentSettings: any, prompt: string): Promise<TranslationResult> {
-    const maxRetries = currentSettings?.maxRetries ?? 3;
-    const baseDelay = currentSettings?.baseDelay ?? 2000;
-    const maxDelay = currentSettings?.maxDelay ?? 30000;
-    if (model === 'custom' || model?.startsWith('custom:')) {
-        if (!currentSettings || !currentSettings.openaiBaseUrl || (!currentSettings.openaiKey && (!currentSettings.openaiKeys || currentSettings.openaiKeys.length === 0))) {
-            throw new Error('Custom OpenAI settings are missing.');
-        }
-        const url = currentSettings.openaiBaseUrl.endsWith('/') ? `${currentSettings.openaiBaseUrl}chat/completions` : `${currentSettings.openaiBaseUrl}/chat/completions`;
-        const keys = currentSettings.openaiKeys && currentSettings.openaiKeys.length > 0 ? currentSettings.openaiKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings.openaiKey ? [currentSettings.openaiKey] : []);
-        if (keys.length === 0 || !keys[0]) throw new Error('No API keys configured.');
-        const actualModel = (model === 'custom' ? '' : model.replace('custom:', '')) || currentSettings.openaiModel || 'deepseek-chat';
-
-        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, maxRetries, baseDelay, maxDelay);
-    }
-
-    if (model === 'litellm' || model?.startsWith('litellm:')) {
-        if (!currentSettings || !currentSettings.litellmBaseUrl || (!currentSettings.litellmKeys || currentSettings.litellmKeys.length === 0)) {
-            throw new Error('LiteLLM settings are missing.');
-        }
-        const url = currentSettings.litellmBaseUrl.endsWith('/') ? `${currentSettings.litellmBaseUrl}chat/completions` : `${currentSettings.litellmBaseUrl}/chat/completions`;
-        const keys = currentSettings.litellmKeys.filter((k: string) => k && k.trim() !== '');
-        if (keys.length === 0 || !keys[0]) throw new Error('No LiteLLM API keys configured.');
-        const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings.litellmModel || 'deepseek-chat';
-
-        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, maxRetries, baseDelay, maxDelay);
-    }
-
-    if (model === 'openrouter' || model?.startsWith('openrouter:')) {
-        if (!currentSettings || !currentSettings.openrouterKey) {
-            throw new Error('OpenRouter settings are missing.');
-        }
-        const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings.openrouterModel || 'deepseek/deepseek-chat';
-        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt, maxRetries, baseDelay, maxDelay);
-    }
-
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    if(!apiKey) {
-        throw new Error('GEMINI_API_KEY environment variable is not set.');
-    }
-
-        const ai = new GoogleGenAI({ apiKey });
-
-    let retries = maxRetries;
-    let delay = baseDelay;
-
-    while (retries > 0) {
-        try {
-            const response = await ai.models.generateContent({
-                model: model || 'gemini-2.5-flash',
-                contents: prompt,
-                config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            original_html_with_spans: { type: "STRING" },
-                            translated_html_with_spans: { type: "STRING" }
-                        },
-                        required: ["original_html_with_spans", "translated_html_with_spans"]
-                    },
-                    temperature: 0.1,
-                }
-            });
-
-            if (!response.text) throw new Error("No response text");
-
-            try {
-                return JSON.parse(response.text);
-            } catch {
-                const jsonMatch = response.text.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) throw new Error('Model response was not valid JSON.');
-                return JSON.parse(jsonMatch[0]);
-            }
-        } catch (error: any) {
-            if (retries === 1) {
-                throw error;
-            }
-            console.warn(`Gemini API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries - 1})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            retries--;
-            delay = Math.min(delay * 2, maxDelay);
-        }
-    }
-    throw new Error("Max retries reached");
-}
-
 export async function POST({ request }) {
     const { html, targetLanguage, model, bookTitle, chapterTitle } = await request.json();
 
@@ -291,7 +123,23 @@ export async function POST({ request }) {
             }
 
             const prompt = buildPrompt(sanitizedHtml, targetLanguage, bookTitle, chapterTitle);
-            const result = await translateWithModel(model, currentSettings, prompt);
+            const systemPrompt = "You are an expert translator that precisely aligns HTML sentences.";
+            const jsonSchemaProperties = {
+                original_html_with_spans: { type: "string" },
+                translated_html_with_spans: { type: "string" }
+            };
+            const jsonSchemaRequired = ["original_html_with_spans", "translated_html_with_spans"];
+
+            const result = await generateContentWithFallback(
+                model,
+                currentSettings,
+                prompt,
+                systemPrompt,
+                true,
+                "translation_result",
+                jsonSchemaProperties,
+                jsonSchemaRequired
+            );
             const restoredOriginal = restoreProtectedBlocks(result.original_html_with_spans, blocks);
             const restoredTranslated = restoreProtectedBlocks(result.translated_html_with_spans, blocks);
 

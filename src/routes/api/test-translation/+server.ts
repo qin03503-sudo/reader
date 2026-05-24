@@ -47,6 +47,13 @@ export async function POST({ request }) {
             model = `openrouter:${config.model}`;
             mockSettings.openrouterKey = config.key;
             mockSettings.openrouterModel = config.model;
+        } else if (provider === 'mistral') {
+             if (!config.key || !config.model) {
+                return json({ error: 'Missing Mistral configuration' }, { status: 400 });
+            }
+            model = `mistral:${config.model}`;
+            mockSettings.mistralKey = config.key;
+            mockSettings.mistralModel = config.model;
         } else {
              return json({ error: 'Unknown provider' }, { status: 400 });
         }

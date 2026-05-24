@@ -17,6 +17,8 @@
     litellmModel: 'deepseek-chat',
     openrouterKey: '',
     openrouterModel: 'deepseek/deepseek-chat',
+    mistralKey: '',
+    mistralModel: 'mistral-large-latest',
     defaultModel: 'gemini-2.5-flash',
     maxRetries: 3,
     baseDelay: 2000,
@@ -37,7 +39,8 @@
     { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Default)' },
     { id: 'custom', name: 'Custom OpenAI' },
     { id: 'litellm', name: 'LiteLLM' },
-    { id: 'openrouter', name: 'OpenRouter' }
+    { id: 'openrouter', name: 'OpenRouter' },
+    { id: 'mistral', name: 'Mistral AI' }
   ];
 
   onMount(async () => {
@@ -55,6 +58,8 @@
       if (!settings.openaiModel) settings.openaiModel = 'deepseek-chat';
       if (!settings.litellmModel) settings.litellmModel = 'deepseek-chat';
       if (!settings.openrouterModel) settings.openrouterModel = 'deepseek/deepseek-chat';
+      if (!settings.mistralKey) settings.mistralKey = '';
+      if (!settings.mistralModel) settings.mistralModel = 'mistral-large-latest';
       if (!settings.defaultModel) settings.defaultModel = 'gemini-2.5-flash';
       if (settings.maxRetries === undefined) settings.maxRetries = 3;
       if (settings.baseDelay === undefined) settings.baseDelay = 2000;
@@ -100,6 +105,11 @@
           config = {
               key: settings.openrouterKey,
               model: settings.openrouterModel
+          };
+      } else if (provider === 'mistral') {
+          config = {
+              key: settings.mistralKey,
+              model: settings.mistralModel
           };
       }
 
@@ -241,6 +251,70 @@
                 class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
               />
             </div>
+          </div>
+        </div>
+
+
+        <!-- Mistral AI -->
+        <div class="space-y-4 bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="font-semibold text-lg text-gray-900">Mistral AI</h3>
+              <p class="text-sm text-gray-500">Configure your Mistral API settings.</p>
+            </div>
+            <button
+              class="px-4 py-2 text-sm font-medium text-white bg-[#2563eb] rounded-[10px] hover:bg-[#1d4ed8] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#2563eb] transition-colors disabled:opacity-50"
+              onclick={() => testConnection('mistral')}
+              disabled={testingStatus['mistral']?.loading}
+            >
+              {#if testingStatus['mistral']?.loading}
+                <div class="flex items-center space-x-2">
+                  <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  <span>Testing...</span>
+                </div>
+              {:else}
+                Test Connection
+              {/if}
+            </button>
+          </div>
+          {#if testingStatus['mistral']}
+            {#if testingStatus['mistral'].success}
+              <div class="p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-[10px] flex items-start space-x-2">
+                 <CheckCircle2 class="w-4 h-4 mt-0.5 text-green-600 flex-shrink-0" />
+                 <span>Connection successful!</span>
+              </div>
+            {:else if testingStatus['mistral'].error}
+              <div class="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-[10px] flex items-start space-x-2">
+                <AlertCircle class="w-4 h-4 mt-0.5 text-red-600 flex-shrink-0" />
+                 <span>{testingStatus['mistral'].error}</span>
+              </div>
+            {/if}
+          {/if}
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="mistralKey">
+              API Key
+            </label>
+            <input
+              id="mistralKey"
+              type="password"
+              bind:value={settings.mistralKey}
+              placeholder="sk-..."
+              class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1.5" for="mistralModel">
+              Model Name
+            </label>
+            <input
+              id="mistralModel"
+              type="text"
+              bind:value={settings.mistralModel}
+              placeholder="e.g. mistral-large-latest"
+              class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+            />
           </div>
         </div>
 

@@ -75,6 +75,14 @@ export async function POST({ request }) {
             const url = 'https://openrouter.ai/api/v1/chat/completions';
             const response = await fetchOpenAIFormat(url, config.key, config.model, prompt);
             return json({ success: true, message: response });
+        } else if (provider === 'mistral') {
+             if (!config.key || !config.model) {
+                return json({ error: 'Missing Mistral configuration' }, { status: 400 });
+            }
+            const baseUrl = config.baseUrl || 'https://api.mistral.ai/v1';
+            const url = baseUrl.endsWith('/') ? `${baseUrl}chat/completions` : `${baseUrl}/chat/completions`;
+            const response = await fetchOpenAIFormat(url, config.key, config.model, prompt);
+            return json({ success: true, message: response });
         } else {
              return json({ error: 'Unknown provider' }, { status: 400 });
         }

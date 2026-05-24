@@ -145,6 +145,15 @@ export async function generateContentWithFallback(
         return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, openaiStylePayload);
     }
 
+    if (model === 'mistral' || model?.startsWith('mistral:')) {
+        if (!currentSettings || !currentSettings.mistralKey) {
+            throw new Error('Mistral settings are missing.');
+        }
+        const actualModel = (model === 'mistral' ? '' : model.replace('mistral:', '')) || currentSettings.mistralModel || 'mistral-large-latest';
+        openaiStylePayload.model = actualModel;
+        return fetchOpenAIFormat('https://api.mistral.ai/v1/chat/completions', currentSettings.mistralKey, openaiStylePayload);
+    }
+
     // Default to Gemini
     const apiKey = process.env.GEMINI_API_KEY || '';
     if(!apiKey) {

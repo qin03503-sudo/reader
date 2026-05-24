@@ -118,9 +118,14 @@ export async function POST({ request }) {
         const partModel = model || 'gemini-2.5-flash';
         const parts = splitHtmlIntoTranslatableParts(html);
 
-        const translatedParts: { original: string; translated: string; }[] = [];
 
-        for (const part of parts) {
+        const translatedParts: { original: string; translated: string; }[] = new Array(parts.length);
+        const concurrencyLimit = currentSettings?.concurrencyLimit ?? 5;
+        let activePromises = 0;
+        let currentIndex = 0;
+
+        const processPart = async (index: number) => {
+            const part = parts[index];
             const { sanitizedHtml, blocks } = protectNonTranslatableBlocks(part);
             const partHash = hashPart(sanitizedHtml, targetLanguage, partModel);
 
@@ -134,8 +139,8 @@ export async function POST({ request }) {
             });
 
             if (cached) {
-                translatedParts.push({ original: part, translated: cached.translatedHtml });
-                continue;
+                translatedParts[index] = { original: part, translated: cached.translatedHtml };
+                return;
             }
 
             const prompt = buildPrompt(sanitizedHtml, targetLanguage, bookTitle, chapterTitle);
@@ -150,8 +155,26 @@ export async function POST({ request }) {
                 model: partModel
             });
 
-            translatedParts.push({ original: restoredOriginal, translated: restoredTranslated });
-        }
+            translatedParts[index] = { original: restoredOriginal, translated: restoredTranslated };
+        };
+
+        const executeWithConcurrency = async () => {
+            const promises: Promise<void>[] = [];
+            for (let i = 0; i < parts.length; i++) {
+                if (activePromises >= concurrencyLimit) {
+                    await Promise.race(promises);
+                }
+                activePromises++;
+                const p = processPart(i).finally(() => {
+                    activePromises--;
+                    promises.splice(promises.indexOf(p), 1);
+                });
+                promises.push(p);
+            }
+            await Promise.all(promises);
+        };
+
+        await executeWithConcurrency();
 
         const originalHtml = translatedParts.map((p) => p.original).join('');
         const translatedHtml = translatedParts.map((p) => p.translated).join('');

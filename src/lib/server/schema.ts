@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, integer } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
 export const book = pgTable('book', {
@@ -41,6 +41,10 @@ export const settings = pgTable('settings', {
   openrouterKey: text('openrouter_key'),
   openrouterModel: text('openrouter_model').default('deepseek/deepseek-chat'),
   defaultModel: text('default_model').default('gemini-2.5-flash'),
+  maxRetries: integer('max_retries').default(3).notNull(),
+  baseDelay: integer('base_delay').default(2000).notNull(),
+  maxDelay: integer('max_delay').default(30000).notNull(),
+  concurrencyLimit: integer('concurrency_limit').default(5).notNull(),
 });
 
 // Relations

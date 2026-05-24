@@ -3,7 +3,6 @@ import { db } from '$lib/server/db';
 import { settings } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { generateContentWithFallback } from '$lib/server/ai';
-
 export async function POST({ request }) {
     const { sentence, targetLanguage, model, context } = await request.json();
 
@@ -13,6 +12,9 @@ export async function POST({ request }) {
 
     try {
         const currentSettings = await db.query.settings.findFirst({ where: eq(settings.id, 'default') });
+        const maxRetries = currentSettings?.maxRetries ?? 3;
+        const baseDelay = currentSettings?.baseDelay ?? 2000;
+        const maxDelay = currentSettings?.maxDelay ?? 30000;
 
         const prompt = `You are a linguist and language tutor.
 Analyze the following sentence for a native ${targetLanguage} speaker learning the original language.

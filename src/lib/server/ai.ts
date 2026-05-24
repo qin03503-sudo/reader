@@ -6,10 +6,13 @@ export async function fetchOpenAIFormat(
     model: string,
     prompt: string,
     systemPrompt: string,
-    responseFormat?: any
+    responseFormat?: any,
+    maxRetries: number = 3,
+    baseDelay: number = 2000,
+    maxDelay: number = 30000
 ) {
-    let retries = 3;
-    let delay = 2000;
+    let retries = maxRetries;
+    let delay = baseDelay;
 
     while (retries > 0) {
         try {
@@ -78,7 +81,7 @@ export async function fetchOpenAIFormat(
             }
             console.warn(`AI API request failed (${error.message}), retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2; // Exponential backoff
+            delay = Math.min(delay * 2, maxDelay);
         }
     }
     throw new Error("Max retries reached");
@@ -91,6 +94,9 @@ export async function generateContentWithFallback(
     systemPrompt: string,
     responseFormat?: any
 ) {
+    const maxRetries = currentSettings?.maxRetries ?? 3;
+    const baseDelay = currentSettings?.baseDelay ?? 2000;
+    const maxDelay = currentSettings?.maxDelay ?? 30000;
     if (model === 'custom' || model?.startsWith('custom:')) {
         if (!currentSettings || !currentSettings.openaiBaseUrl || (!currentSettings.openaiKey && (!currentSettings.openaiKeys || currentSettings.openaiKeys.length === 0))) {
             throw new Error('Custom OpenAI settings are missing.');
@@ -100,7 +106,7 @@ export async function generateContentWithFallback(
         if (keys.length === 0 || !keys[0]) throw new Error('No API keys configured.');
         const actualModel = (model === 'custom' ? '' : model.replace('custom:', '')) || currentSettings.openaiModel || 'deepseek-chat';
 
-        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, systemPrompt, responseFormat);
+        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, systemPrompt, responseFormat, maxRetries, baseDelay, maxDelay);
     }
 
     if (model === 'litellm' || model?.startsWith('litellm:')) {
@@ -112,7 +118,7 @@ export async function generateContentWithFallback(
         if (keys.length === 0 || !keys[0]) throw new Error('No LiteLLM API keys configured.');
         const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings.litellmModel || 'deepseek-chat';
 
-        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, systemPrompt, responseFormat);
+        return fetchOpenAIFormat(url, keys[0], actualModel, prompt, systemPrompt, responseFormat, maxRetries, baseDelay, maxDelay);
     }
 
     if (model === 'openrouter' || model?.startsWith('openrouter:')) {
@@ -120,7 +126,7 @@ export async function generateContentWithFallback(
             throw new Error('OpenRouter settings are missing.');
         }
         const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings.openrouterModel || 'deepseek/deepseek-chat';
-        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt, systemPrompt, responseFormat);
+        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, actualModel, prompt, systemPrompt, responseFormat, maxRetries, baseDelay, maxDelay);
     }
 
     const apiKey = process.env.GEMINI_API_KEY || '';
@@ -130,8 +136,8 @@ export async function generateContentWithFallback(
 
     const ai = new GoogleGenAI({ apiKey });
 
-    let retries = 3;
-    let delay = 2000;
+    let retries = maxRetries;
+    let delay = baseDelay;
 
     while (retries > 0) {
         try {
@@ -187,7 +193,7 @@ export async function generateContentWithFallback(
             }
             console.warn(`Gemini API request failed (${error.message}), retrying in ${delay}ms...`);
             await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
+            delay = Math.min(delay * 2, maxDelay);
         }
     }
     throw new Error("Max retries reached");

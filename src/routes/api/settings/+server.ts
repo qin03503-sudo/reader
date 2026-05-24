@@ -15,7 +15,11 @@ export async function GET() {
                 openaiModel: 'deepseek-chat',
                 litellmModel: 'deepseek-chat',
                 openrouterModel: 'deepseek/deepseek-chat',
-                defaultModel: 'gemini-2.5-flash'
+                defaultModel: 'gemini-2.5-flash',
+                maxRetries: 3,
+                baseDelay: 2000,
+                maxDelay: 30000,
+                concurrencyLimit: 5
             }).returning();
         }
         return json(currentSettings);
@@ -38,7 +42,11 @@ export async function POST({ request }) {
             litellmModel: body.litellmModel || 'deepseek-chat',
             openrouterKey: body.openrouterKey,
             openrouterModel: body.openrouterModel || 'deepseek/deepseek-chat',
-            defaultModel: body.defaultModel || 'gemini-2.5-flash'
+            defaultModel: body.defaultModel || 'gemini-2.5-flash',
+            maxRetries: body.maxRetries ?? 3,
+            baseDelay: body.baseDelay ?? 2000,
+            maxDelay: body.maxDelay ?? 30000,
+            concurrencyLimit: body.concurrencyLimit ?? 5
         }).onConflictDoUpdate({
             target: settings.id,
             set: {
@@ -50,7 +58,11 @@ export async function POST({ request }) {
                 litellmModel: body.litellmModel,
                 openrouterKey: body.openrouterKey,
                 openrouterModel: body.openrouterModel,
-                defaultModel: body.defaultModel
+                defaultModel: body.defaultModel,
+                maxRetries: body.maxRetries,
+                baseDelay: body.baseDelay,
+                maxDelay: body.maxDelay,
+                concurrencyLimit: body.concurrencyLimit
             }
         }).returning();
 

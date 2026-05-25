@@ -3,13 +3,13 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { showToast } from '$lib/stores/toast';
 
-  let { book = null, globalModel = 'gemini-2.5-flash' }: { book?: any, globalModel?: string } = $props();
+  let { book = null, globalModel = 'gemini-2.5-flash' } = $props<{ book?: any, globalModel?: string }>();
   
   const dispatch = createEventDispatcher();
   
   let currentChapterIndex = $state(0);
-  let htmlContent = $state('');
-  let translatedContent = $state('');
+  let originalRenderParts = $state<string[]>([]);
+  let translatedRenderParts = $state<string[]>([]);
   let translationLoading = $state(false);
   let loading = $state(true);
   let error = $state('');
@@ -24,7 +24,7 @@
   let translateProgressText = $state('Preparing translation…');
   let totalTranslationParts = $state(0);
   let completedTranslationParts = $state(0);
-  const prefetchedTranslations = new Map<number, { originalHtml: string; translatedHtml: string }>();
+  const prefetchedTranslations = new Map<number, { originalParts: string[]; translatedParts: string[] }>();
 
   // Analysis / Dictionary state
   let showAnalysis = $state(false);
@@ -54,23 +54,23 @@
     if (!chapter) return;
     loading = true;
     error = '';
-    htmlContent = '';
-    translatedContent = '';
+    originalRenderParts = [];
+    translatedRenderParts = [];
     translationError = '';
     
     try {
       const res = await fetch(`/api/chapter?bookId=${book.id}&href=${encodeURIComponent(chapter.href)}`);
       const data = await res.json();
       if (res.ok) {
-        htmlContent = data.html;
+        originalRenderParts = splitHtmlIntoClientParts(data.html, 800);
         const prefetched = prefetchedTranslations.get(currentChapterIndex);
         if (prefetched) {
-          htmlContent = prefetched.originalHtml;
-          translatedContent = prefetched.translatedHtml;
+          originalRenderParts = [...prefetched.originalParts];
+          translatedRenderParts = [...prefetched.translatedParts];
           translationLoading = false;
           prefetchedTranslations.delete(currentChapterIndex);
         } else {
-          translateChapter(data.html);
+          translateChapter(originalRenderParts);
         }
         prefetchNextChapter();
       } else {
@@ -101,14 +101,12 @@
     return parts;
   }
 
-  async function translateChapter(sourceHtml: string) {
+  async function translateChapter(parts: string[]) {
       translationLoading = true;
       translateProgressText = 'Preparing translation…';
       translationError = '';
-      translatedContent = '';
       completedTranslationParts = 0;
       try {
-          const parts = splitHtmlIntoClientParts(sourceHtml, 800);
           totalTranslationParts = parts.length;
           const translatedParts: string[] = [];
           const originalParts: string[] = [];
@@ -134,12 +132,12 @@
 
             // Prefix sync ids to avoid collisions across parts
             const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="${i}_$1"`);
-            originalParts.push(prefixIds(data.originalHtml));
-            translatedParts.push(prefixIds(data.translatedHtml));
+            originalRenderParts[i] = prefixIds(data.originalHtml);
+            translatedRenderParts.push(prefixIds(data.translatedHtml));
 
             completedTranslationParts = i + 1;
-            htmlContent = originalParts.join('');
-            translatedContent = translatedParts.join('');
+
+
           }
       } catch (e) {
           translationError = 'Failed to connect to translation service';
@@ -182,8 +180,8 @@
           }
 
           prefetchedTranslations.set(nextIndex, {
-              originalHtml: originalParts.join(''),
-              translatedHtml: translatedParts.join('')
+              originalParts,
+              translatedParts
           });
       } catch {
           // Silent background prefetch failure.
@@ -357,7 +355,9 @@
         <div class="text-red-500 p-4 bg-red-50 rounded-lg">{error}</div>
       {:else}
         <div role="presentation" bind:this={originalContainer} onmouseover={handleMouseOver} onmouseout={handleMouseOut} onclick={handleClick} onfocus={handleMouseOver} onblur={handleMouseOut} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto">
-          {@html htmlContent}
+          {#each originalRenderParts as part}
+            {@html part}
+          {/each}
         </div>
       {/if}
     </div>
@@ -367,13 +367,15 @@
 
     <!-- Translated Pane -->
     <div class="w-1/2 overflow-y-auto relative p-8 bg-white/50">
-      {#if translatedContent}
+      {#if translatedRenderParts.length > 0}
         <div role="presentation" bind:this={translatedContainer} onmouseover={handleMouseOver} onmouseout={handleMouseOut} onclick={handleClick} onfocus={handleMouseOver} onblur={handleMouseOut} class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto" dir="rtl">
-          {@html translatedContent}
+          {#each translatedRenderParts as part}
+            {@html part}
+          {/each}
         </div>
         {#if translationLoading && completedTranslationParts < totalTranslationParts}
           <div class="mt-6 space-y-3">
-            {#each Array(Math.min(3, totalTranslationParts - completedTranslationParts)) as _}
+            {#each Array.from({ length: Math.max(0, Math.min(3, totalTranslationParts - completedTranslationParts)) }) as _}
               <div class="animate-pulse space-y-2">
                 <div class="h-3 bg-gray-200 rounded w-full"></div>
                 <div class="h-3 bg-gray-200 rounded w-11/12"></div>
@@ -383,12 +385,12 @@
           </div>
           <div class="flex items-center gap-3 mt-4 text-sm text-gray-500">
             <div class="w-4 h-4 border-2 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-            <span>Translating part {completedTranslationParts + 1} of {totalTranslationParts}...</span>
+            <span>{translateProgressText}</span>
           </div>
         {/if}
       {:else if translationError}
         <div class="text-red-500 p-4 bg-red-50 rounded-lg">{translationError}</div>
-      {:else if !loading && htmlContent}
+      {:else if !loading && originalRenderParts.length > 0}
         <div class="flex flex-col justify-center items-center h-64 gap-4 text-gray-400">
            <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
            <p>Preparing translation...</p>

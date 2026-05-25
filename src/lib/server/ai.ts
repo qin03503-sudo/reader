@@ -64,7 +64,8 @@ export async function generateContentWithFallback(
         ...(response_format ? { response_format } : {})
     };
 
-    const fetchOpenAIFormat = async (url: string, key: string, payload: any) => {
+    const fetchOpenAIFormat = async (url: string, provider: string, keys: string[], payload: any) => {
+        let currentKey = getNextKey(provider, keys);
         let retries = maxRetries;
         let delay = baseDelay;
 
@@ -74,7 +75,7 @@ export async function generateContentWithFallback(
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${key}`
+                        'Authorization': `Bearer ${currentKey}`
                     },
                     body: JSON.stringify(payload)
                 });
@@ -119,6 +120,9 @@ export async function generateContentWithFallback(
                     throw error;
                 }
                 console.warn(`AI API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries - 1})`);
+                if (keys.length > 1) {
+                    currentKey = getNextKey(provider, keys);
+                }
                 await new Promise(resolve => setTimeout(resolve, delay));
                 retries--;
                 delay = Math.min(delay * 2, maxDelay);
@@ -137,8 +141,7 @@ export async function generateContentWithFallback(
         const actualModel = (model === 'custom' ? '' : model.replace('custom:', '')) || currentSettings.openaiModel || 'deepseek-chat';
 
         openaiStylePayload.model = actualModel;
-        const keyToUse = getNextKey('custom', keys);
-        return fetchOpenAIFormat(url, keyToUse, openaiStylePayload);
+        return fetchOpenAIFormat(url, 'custom', keys, openaiStylePayload);
     }
 
     if (model === 'litellm' || model?.startsWith('litellm:')) {
@@ -151,8 +154,7 @@ export async function generateContentWithFallback(
         const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings.litellmModel || 'deepseek-chat';
 
         openaiStylePayload.model = actualModel;
-        const keyToUse = getNextKey('litellm', keys);
-        return fetchOpenAIFormat(url, keyToUse, openaiStylePayload);
+        return fetchOpenAIFormat(url, 'litellm', keys, openaiStylePayload);
     }
 
     if (model === 'openrouter' || model?.startsWith('openrouter:')) {
@@ -160,8 +162,7 @@ export async function generateContentWithFallback(
         if (keys.length === 0 || !keys[0]) throw new Error('OpenRouter API keys are missing.');
         const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings.openrouterModel || 'deepseek/deepseek-chat';
         openaiStylePayload.model = actualModel;
-        const keyToUse = getNextKey('openrouter', keys);
-        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', keyToUse, openaiStylePayload);
+        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', 'openrouter', keys, openaiStylePayload);
     }
 
     if (model === 'mistral' || model?.startsWith('mistral:')) {
@@ -169,8 +170,7 @@ export async function generateContentWithFallback(
         if (keys.length === 0 || !keys[0]) throw new Error('Mistral API keys are missing.');
         const actualModel = (model === 'mistral' ? '' : model.replace('mistral:', '')) || currentSettings.mistralModel || 'mistral-large-latest';
         openaiStylePayload.model = actualModel;
-        const keyToUse = getNextKey('mistral', keys);
-        return fetchOpenAIFormat('https://api.mistral.ai/v1/chat/completions', keyToUse, openaiStylePayload);
+        return fetchOpenAIFormat('https://api.mistral.ai/v1/chat/completions', 'mistral', keys, openaiStylePayload);
     }
 
     // Default to Gemini
@@ -184,8 +184,8 @@ export async function generateContentWithFallback(
         throw new Error('GEMINI_API_KEY environment variable is not set and no Gemini keys are configured.');
     }
 
-    const keyToUse = getNextKey('gemini', geminiKeys);
-    const ai = new GoogleGenAI({ apiKey: keyToUse });
+    let currentKey = getNextKey('gemini', geminiKeys);
+    let ai = new GoogleGenAI({ apiKey: currentKey });
 
     let retries = maxRetries;
     let delay = baseDelay;
@@ -235,6 +235,10 @@ export async function generateContentWithFallback(
                 throw error;
             }
             console.warn(`Gemini API request failed (${error.message}), retrying in ${delay}ms... (Retries left: ${retries - 1})`);
+            if (geminiKeys.length > 1) {
+                currentKey = getNextKey('gemini', geminiKeys);
+                ai = new GoogleGenAI({ apiKey: currentKey });
+            }
             await new Promise(resolve => setTimeout(resolve, delay));
             retries--;
             delay = Math.min(delay * 2, maxDelay);

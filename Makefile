@@ -1,4 +1,6 @@
 .PHONY: install dev build check db-generate db-push db-studio up down clean
+all: install db-generate db-push build 
+	bun run start
 
 install:
 	bun install

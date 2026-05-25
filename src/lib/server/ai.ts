@@ -1,5 +1,22 @@
 import { GoogleGenAI } from '@google/genai';
 
+// Global state for round-robin load balancing
+const roundRobinIndices: Record<string, number> = {};
+
+function getNextKey(provider: string, keys: string[]): string {
+    if (!keys || keys.length === 0) return '';
+    if (keys.length === 1) return keys[0];
+
+    if (roundRobinIndices[provider] === undefined) {
+        roundRobinIndices[provider] = 0;
+    }
+
+    const key = keys[roundRobinIndices[provider]];
+    roundRobinIndices[provider] = (roundRobinIndices[provider] + 1) % keys.length;
+    return key;
+}
+
+
 export async function generateContentWithFallback(
     model: string | undefined,
     currentSettings: any,
@@ -120,7 +137,8 @@ export async function generateContentWithFallback(
         const actualModel = (model === 'custom' ? '' : model.replace('custom:', '')) || currentSettings.openaiModel || 'deepseek-chat';
 
         openaiStylePayload.model = actualModel;
-        return fetchOpenAIFormat(url, keys[0], openaiStylePayload);
+        const keyToUse = getNextKey('custom', keys);
+        return fetchOpenAIFormat(url, keyToUse, openaiStylePayload);
     }
 
     if (model === 'litellm' || model?.startsWith('litellm:')) {
@@ -133,34 +151,41 @@ export async function generateContentWithFallback(
         const actualModel = (model === 'litellm' ? '' : model.replace('litellm:', '')) || currentSettings.litellmModel || 'deepseek-chat';
 
         openaiStylePayload.model = actualModel;
-        return fetchOpenAIFormat(url, keys[0], openaiStylePayload);
+        const keyToUse = getNextKey('litellm', keys);
+        return fetchOpenAIFormat(url, keyToUse, openaiStylePayload);
     }
 
     if (model === 'openrouter' || model?.startsWith('openrouter:')) {
-        if (!currentSettings || !currentSettings.openrouterKey) {
-            throw new Error('OpenRouter settings are missing.');
-        }
+        const keys = currentSettings?.openrouterKeys && currentSettings.openrouterKeys.length > 0 ? currentSettings.openrouterKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings?.openrouterKey ? [currentSettings.openrouterKey] : []);
+        if (keys.length === 0 || !keys[0]) throw new Error('OpenRouter API keys are missing.');
         const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings.openrouterModel || 'deepseek/deepseek-chat';
         openaiStylePayload.model = actualModel;
-        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, openaiStylePayload);
+        const keyToUse = getNextKey('openrouter', keys);
+        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', keyToUse, openaiStylePayload);
     }
 
     if (model === 'mistral' || model?.startsWith('mistral:')) {
-        if (!currentSettings || !currentSettings.mistralKey) {
-            throw new Error('Mistral settings are missing.');
-        }
+        const keys = currentSettings?.mistralKeys && currentSettings.mistralKeys.length > 0 ? currentSettings.mistralKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings?.mistralKey ? [currentSettings.mistralKey] : []);
+        if (keys.length === 0 || !keys[0]) throw new Error('Mistral API keys are missing.');
         const actualModel = (model === 'mistral' ? '' : model.replace('mistral:', '')) || currentSettings.mistralModel || 'mistral-large-latest';
         openaiStylePayload.model = actualModel;
-        return fetchOpenAIFormat('https://api.mistral.ai/v1/chat/completions', currentSettings.mistralKey, openaiStylePayload);
+        const keyToUse = getNextKey('mistral', keys);
+        return fetchOpenAIFormat('https://api.mistral.ai/v1/chat/completions', keyToUse, openaiStylePayload);
     }
 
     // Default to Gemini
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    if(!apiKey) {
-        throw new Error('GEMINI_API_KEY environment variable is not set.');
+    let geminiKeys = currentSettings?.geminiKeys && currentSettings.geminiKeys.length > 0 ? currentSettings.geminiKeys.filter((k: string) => k && k.trim() !== '') : [];
+    if (geminiKeys.length === 0) {
+        const envKey = process.env.GEMINI_API_KEY || '';
+        geminiKeys = envKey.split(',').map((k: string) => k.trim()).filter((k: string) => k);
     }
 
-    const ai = new GoogleGenAI({ apiKey });
+    if (geminiKeys.length === 0) {
+        throw new Error('GEMINI_API_KEY environment variable is not set and no Gemini keys are configured.');
+    }
+
+    const keyToUse = getNextKey('gemini', geminiKeys);
+    const ai = new GoogleGenAI({ apiKey: keyToUse });
 
     let retries = maxRetries;
     let delay = baseDelay;

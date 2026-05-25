@@ -45,14 +45,14 @@ export async function POST({ request }) {
                 return json({ error: 'Missing OpenRouter configuration' }, { status: 400 });
             }
             model = `openrouter:${config.model}`;
-            mockSettings.openrouterKey = config.key;
+            mockSettings.openrouterKeys = [config.key];
             mockSettings.openrouterModel = config.model;
         } else if (provider === 'mistral') {
              if (!config.key || !config.model) {
                 return json({ error: 'Missing Mistral configuration' }, { status: 400 });
             }
             model = `mistral:${config.model}`;
-            mockSettings.mistralKey = config.key;
+            mockSettings.mistralKeys = [config.key];
             mockSettings.mistralModel = config.model;
         } else {
              return json({ error: 'Unknown provider' }, { status: 400 });

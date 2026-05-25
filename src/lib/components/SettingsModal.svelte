@@ -16,9 +16,12 @@
     litellmKeys: [] as string[],
     litellmModel: 'deepseek-chat',
     openrouterKey: '',
+    openrouterKeys: [] as string[],
     openrouterModel: 'deepseek/deepseek-chat',
     mistralKey: '',
+    mistralKeys: [] as string[],
     mistralModel: 'mistral-large-latest',
+    geminiKeys: [] as string[],
     defaultModel: 'gemini-2.5-flash',
     maxRetries: 3,
     baseDelay: 2000,
@@ -55,11 +58,14 @@
       if (!settings.litellmKeys) settings.litellmKeys = [];
       if (!settings.litellmBaseUrl) settings.litellmBaseUrl = '';
       if (!settings.openrouterKey) settings.openrouterKey = '';
+      if (!settings.openrouterKeys) settings.openrouterKeys = [];
       if (!settings.openaiBaseUrl) settings.openaiBaseUrl = '';
       if (!settings.openaiModel) settings.openaiModel = 'deepseek-chat';
       if (!settings.litellmModel) settings.litellmModel = 'deepseek-chat';
       if (!settings.openrouterModel) settings.openrouterModel = 'deepseek/deepseek-chat';
       if (!settings.mistralKey) settings.mistralKey = '';
+      if (!settings.mistralKeys) settings.mistralKeys = [];
+      if (!settings.geminiKeys) settings.geminiKeys = [];
       if (!settings.mistralModel) settings.mistralModel = 'mistral-large-latest';
       if (!settings.defaultModel) settings.defaultModel = 'gemini-2.5-flash';
       if (settings.maxRetries === undefined) settings.maxRetries = 3;
@@ -104,12 +110,12 @@
           };
       } else if (provider === 'openrouter') {
           config = {
-              key: settings.openrouterKey,
+              key: settings.openrouterKeys[0] || settings.openrouterKey,
               model: settings.openrouterModel
           };
       } else if (provider === 'mistral') {
           config = {
-              key: settings.mistralKey,
+              key: settings.mistralKeys[0] || settings.mistralKey,
               model: settings.mistralModel
           };
       }
@@ -162,7 +168,41 @@
       settings.litellmKeys = settings.litellmKeys.filter((_, i) => i !== index);
   }
 
+
+  function handleOpenrouterKeyChange(index: number, e: Event) {
+      const val = (e.target as HTMLInputElement).value;
+      settings.openrouterKeys[index] = val;
+  }
+  function addOpenrouterKey() {
+      settings.openrouterKeys = [...settings.openrouterKeys, ''];
+  }
+  function removeOpenrouterKey(index: number) {
+      settings.openrouterKeys = settings.openrouterKeys.filter((_, i) => i !== index);
+  }
+
+  function handleMistralKeyChange(index: number, e: Event) {
+      const val = (e.target as HTMLInputElement).value;
+      settings.mistralKeys[index] = val;
+  }
+  function addMistralKey() {
+      settings.mistralKeys = [...settings.mistralKeys, ''];
+  }
+  function removeMistralKey(index: number) {
+      settings.mistralKeys = settings.mistralKeys.filter((_, i) => i !== index);
+  }
+
+  function handleGeminiKeyChange(index: number, e: Event) {
+      const val = (e.target as HTMLInputElement).value;
+      settings.geminiKeys[index] = val;
+  }
+  function addGeminiKey() {
+      settings.geminiKeys = [...settings.geminiKeys, ''];
+  }
+  function removeGeminiKey(index: number) {
+      settings.geminiKeys = settings.geminiKeys.filter((_, i) => i !== index);
+  }
 </script>
+
 
 
 {#if show}
@@ -244,6 +284,31 @@
                 <div>
                   <h3 class="font-semibold text-lg text-gray-900 mb-1">General Settings</h3>
                   <p class="text-sm text-gray-500 mb-6">Configure basic translation preferences.</p>
+                </div>
+
+                <div class="bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm space-y-4 mb-4">
+                  <div>
+                      <span class="block text-sm font-medium text-gray-700 mb-1.5">
+                        Gemini API Keys (round-robin) <span class="text-xs text-gray-500 font-normal ml-1">(Optional - overrides GEMINI_API_KEY env var)</span>
+                      </span>
+                      {#each settings.geminiKeys as key, i}
+                          <div class="flex gap-2 mb-2">
+                              <input
+                                  type="password"
+                                  value={key}
+                                  oninput={(e) => handleGeminiKeyChange(i, e)}
+                                  placeholder="AIza..."
+                                  class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                              />
+                              <button type="button" onclick={() => removeGeminiKey(i)} class="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-[10px] transition-colors">
+                                  <X class="w-4 h-4" />
+                              </button>
+                          </div>
+                      {/each}
+                      <button type="button" onclick={addGeminiKey} class="text-[#2563eb] hover:text-[#1d4ed8] text-sm font-medium mt-1 inline-block">
+                          + Add another key
+                      </button>
+                  </div>
                 </div>
 
                 <div class="space-y-3 bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm">
@@ -547,16 +612,37 @@
                   </div>
 
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="openrouterKey">
-                      API Key
-                    </label>
-                    <input
-                      id="openrouterKey"
-                      type="password"
-                      bind:value={settings.openrouterKey}
-                      placeholder="sk-or-v1-..."
-                      class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
-                    />
+                      <span class="block text-sm font-medium text-gray-700 mb-1.5">
+                        API Keys (round-robin)
+                      </span>
+                      {#if settings.openrouterKey && settings.openrouterKeys.length === 0}
+                          <!-- Migration for existing single key -->
+                          <div class="flex gap-2 mb-2">
+                              <input
+                                  type="password"
+                                  bind:value={settings.openrouterKey}
+                                  placeholder="sk-or-v1-..."
+                                  class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                              />
+                          </div>
+                      {/if}
+                      {#each settings.openrouterKeys as key, i}
+                          <div class="flex gap-2 mb-2">
+                              <input
+                                  type="password"
+                                  value={key}
+                                  oninput={(e) => handleOpenrouterKeyChange(i, e)}
+                                  placeholder="sk-or-v1-..."
+                                  class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                              />
+                              <button type="button" onclick={() => removeOpenrouterKey(i)} class="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-[10px] transition-colors">
+                                  <X class="w-4 h-4" />
+                              </button>
+                          </div>
+                      {/each}
+                      <button type="button" onclick={addOpenrouterKey} class="text-[#2563eb] hover:text-[#1d4ed8] text-sm font-medium mt-1 inline-block">
+                          + Add another key
+                      </button>
                   </div>
                 </div>
               </div>
@@ -597,16 +683,36 @@
 
                 <div class="bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm space-y-4">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="mistralKey">
-                      API Key
-                    </label>
-                    <input
-                      id="mistralKey"
-                      type="password"
-                      bind:value={settings.mistralKey}
-                      placeholder="sk-..."
-                      class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
-                    />
+                      <span class="block text-sm font-medium text-gray-700 mb-1.5">
+                        API Keys (round-robin)
+                      </span>
+                      {#if settings.mistralKey && settings.mistralKeys.length === 0}
+                          <div class="flex gap-2 mb-2">
+                              <input
+                                  type="password"
+                                  bind:value={settings.mistralKey}
+                                  placeholder="sk-..."
+                                  class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                              />
+                          </div>
+                      {/if}
+                      {#each settings.mistralKeys as key, i}
+                          <div class="flex gap-2 mb-2">
+                              <input
+                                  type="password"
+                                  value={key}
+                                  oninput={(e) => handleMistralKeyChange(i, e)}
+                                  placeholder="sk-..."
+                                  class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                              />
+                              <button type="button" onclick={() => removeMistralKey(i)} class="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-[10px] transition-colors">
+                                  <X class="w-4 h-4" />
+                              </button>
+                          </div>
+                      {/each}
+                      <button type="button" onclick={addMistralKey} class="text-[#2563eb] hover:text-[#1d4ed8] text-sm font-medium mt-1 inline-block">
+                          + Add another key
+                      </button>
                   </div>
 
                   <div>

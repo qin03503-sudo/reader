@@ -104,6 +104,7 @@ export async function POST({ request }) {
         let currentIndex = 0;
 
         const processPart = async (index: number) => {
+            const prefixIds = (html: string, prefix: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="${prefix}$1"`);
             const part = parts[index];
             const { sanitizedHtml, blocks } = protectNonTranslatableBlocks(part);
             const partHash = hashPart(sanitizedHtml, targetLanguage, partModel);
@@ -118,7 +119,11 @@ export async function POST({ request }) {
             });
 
             if (cached) {
-                translatedParts[index] = { original: part, translated: cached.translatedHtml };
+                const cachedOriginal = cached.originalHtmlWithSpans || part;
+                translatedParts[index] = {
+                    original: prefixIds(cachedOriginal, `${index}_`),
+                    translated: prefixIds(cached.translatedHtml, `${index}_`)
+                };
                 return;
             }
 
@@ -145,12 +150,16 @@ export async function POST({ request }) {
 
             await db.insert(translationCache).values({
                 originalHtml: cacheKey,
+                originalHtmlWithSpans: restoredOriginal,
                 translatedHtml: restoredTranslated,
                 targetLanguage,
                 model: partModel
             });
 
-            translatedParts[index] = { original: restoredOriginal, translated: restoredTranslated };
+            translatedParts[index] = {
+                original: prefixIds(restoredOriginal, `${index}_`),
+                translated: prefixIds(restoredTranslated, `${index}_`)
+            };
         };
 
         const executeWithConcurrency = async () => {

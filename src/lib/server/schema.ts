@@ -23,6 +23,7 @@ export const chapter = pgTable('chapter', {
 export const translationCache = pgTable('translation_cache', {
   id: uuid('id').primaryKey().defaultRandom(),
   originalHtml: text('original_html').notNull(),
+  originalHtmlWithSpans: text('original_html_with_spans'),
   translatedHtml: text('translated_html').notNull(),
   targetLanguage: text('target_language').notNull(),
   model: text('model').notNull(),

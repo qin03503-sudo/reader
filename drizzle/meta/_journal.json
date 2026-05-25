@@ -36,6 +36,13 @@
       "when": 1779623084777,
       "tag": "0004_perpetual_martin_li",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1779702154648,
+      "tag": "0005_flippant_mauler",
+      "breakpoints": true
     }
   ]
 }

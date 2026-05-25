@@ -9,7 +9,7 @@
   import { createReaderState } from '$lib/states/reader.svelte';
   import { createSyncState } from '$lib/states/sync.svelte';
 
-  let { book = null, globalModel = 'gemini-2.5-flash' } = $props<{ book?: any, globalModel?: string }>();
+  let { book = null, globalModel = 'gemini-2.5-flash', settings = null } = $props<{ book?: any, globalModel?: string, settings?: any }>();
   
   const dispatch = createEventDispatcher();
   
@@ -17,7 +17,6 @@
   const syncState = createSyncState();
 
   let showModelSettings = $state(false);
-  let settings = $state<any>(null);
 
   let models = $derived.by(() => {
     const list: { id: string; name: string }[] = [
@@ -35,19 +34,10 @@
     return list;
   });
 
-  onMount(async () => {
+  onMount(() => {
     readerState.book = book;
     readerState.globalModel = globalModel;
     readerState.selectedModel = globalModel || 'gemini-2.5-flash';
-
-    try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        settings = await res.json();
-      }
-    } catch(e) {
-      showToast('error', 'Failed to load settings');
-    }
   });
 
   $effect(() => {

@@ -19,6 +19,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
+    env: { VITE_TESTING: 'true' },
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
   },

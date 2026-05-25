@@ -1,6 +1,7 @@
 <script lang="ts">
   import { BookOpen, Upload, Settings as SettingsIcon } from '@lucide/svelte';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
+import { invalidateAll } from '$app/navigation';
   import { showToast } from '$lib/stores/toast';
   import BookCard from './library/BookCard.svelte';
   
@@ -11,17 +12,6 @@
   let fileInput: HTMLInputElement;
   let loading = $state(false);
 
-  async function fetchBooks() {
-    try {
-      const res = await fetch('/api/upload');
-      const data = await res.json();
-      if (data.books) books = data.books;
-    } catch (e) {
-      showToast('error', 'Failed to load books');
-    }
-  }
-
-  onMount(fetchBooks);
 
   async function handleFileUpload(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
@@ -38,7 +28,7 @@
       });
       
       if (res.ok) {
-        await fetchBooks();
+        await invalidateAll();
         showToast('success', 'Book uploaded successfully');
       } else {
         const error = await res.json();
@@ -61,7 +51,7 @@
     try {
       const res = await fetch(`/api/book/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        books = books.filter(b => b.id !== id);
+        await invalidateAll();
         showToast('success', 'Book deleted');
       }
     } catch (e) {

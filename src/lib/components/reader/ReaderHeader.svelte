@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ArrowLeft, BookOpen, Settings } from '@lucide/svelte';
+  import { ArrowLeft, BookOpen, Settings, Menu } from '@lucide/svelte';
 
   let {
     book,
@@ -7,6 +7,7 @@
     models,
     selectedModel = $bindable(),
     showModelSettings = $bindable(),
+    showSidebar = $bindable(),
     onClose
   }: {
     book: any,
@@ -14,12 +15,20 @@
     models: {id: string, name: string}[],
     selectedModel: string,
     showModelSettings: boolean,
+    showSidebar: boolean,
     onClose: () => void
   } = $props();
 </script>
 
 <header class="flex-none bg-white border-b border-[#e5e5e5] px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
   <div class="flex items-center gap-4">
+    <button
+      onclick={() => showSidebar = !showSidebar}
+      class="p-2 -ml-2 text-gray-500 hover:text-gray-900 transition-colors rounded-full hover:bg-gray-100"
+      title="Table of Contents"
+    >
+      <Menu class="w-5 h-5" />
+    </button>
     <button
       onclick={onClose}
       class="p-2 -ml-2 text-gray-500 hover:text-gray-900 transition-colors rounded-full hover:bg-gray-100"

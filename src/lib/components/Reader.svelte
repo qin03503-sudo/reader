@@ -4,6 +4,7 @@
   import ReaderHeader from './reader/ReaderHeader.svelte';
   import ReaderFooter from './reader/ReaderFooter.svelte';
   import AnalysisPanel from './reader/AnalysisPanel.svelte';
+  import TableOfContents from './reader/TableOfContents.svelte';
 
   let { book = null, globalModel = 'gemini-2.5-flash' } = $props<{ book?: any, globalModel?: string }>();
   
@@ -17,6 +18,7 @@
   let error = $state('');
   let translationError = $state('');
   let showModelSettings = $state(false);
+  let showSidebar = $state(false);
   let selectedLanguage = $state('fa');
   let targetLanguage = $state('fa');
   let originalContainer = $state<HTMLDivElement | null>(null);
@@ -294,6 +296,7 @@
     {models}
     bind:selectedModel
     bind:showModelSettings
+    bind:showSidebar
     onClose={() => dispatch('close')}
   />
 
@@ -351,6 +354,15 @@
       {/if}
     </div>
   </div>
+
+  <!-- Table of Contents Sidebar -->
+  <TableOfContents
+    bind:showSidebar
+    chapters={book?.chapters || []}
+    {currentChapterIndex}
+    onSelect={(index) => { currentChapterIndex = index; }}
+    onClose={() => showSidebar = false}
+  />
 
   <!-- Analysis Panel -->
   <AnalysisPanel

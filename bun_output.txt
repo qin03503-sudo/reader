@@ -1,0 +1,63 @@
+Listening on http://0.0.0.0:3000/
+{"level":"ERROR","time":"2026-05-25T10:26:40.408Z","pid":137449,"hostname":"devbox","err":{"type":"e","message":"Failed query: select \"book\".\"id\", \"book\".\"title\", \"book\".\"author\", \"book\".\"cover_url\", \"book\".\"local_path\", \"book\".\"hash\", \"book\".\"minio_key\", \"book\".\"created_at\", \"book\".\"updated_at\", \"book_chapters\".\"data\" as \"chapters\" from \"book\" \"book\" left join lateral (select coalesce(json_agg(json_build_array(\"book_chapters\".\"id\", \"book_chapters\".\"href\", \"book_chapters\".\"title\", \"book_chapters\".\"book_id\")Received SIGTERM, closing database connections...
+Database connections closed successfully.
+_id\" = \"book\".\"id\") \"book_chapters\" on true order by \"book\".\"created_at\" desc\nparams: : Failed to connect","stack":"Error: Failed query: select \"book\".\"id\", \"book\".\"title\", \"book\".\"author\", \"book\".\"cover_url\", \"book\".\"local_path\", \"book\".\"hash\", \"book\".\"minio_key\", \"book\".\"created_at\", \"book\".\"updated_at\", \"book_chapters\".\"data\" as \"chapters\" from \"book\" \"book\" left join lateral (select coalesce(json_agg(json_build_array(\"book_chapters\".\"id\", \"book_chapters\".\"href\", \"book_chapters\".\"title\", \"book_chapters\".\"book_id\")), '[]'::json) as \"data\" from \"chapter\" \"book_chapters\" where \"book_chapters\".\"book_id\" = \"book\".\"id\") \"book_chapters\" on true order by \"book\".\"created_at\" desc\nparams: \n    at queryWithCache (/app/build/server/chunks/db-fibd0nt5.js:4570:14)\n    at processTicksAndRejections (native:7:39)\ncaused by: undefined","query":"select \"book\".\"id\", \"book\".\"title\", \"book\".\"author\", \"book\".\"cover_url\", \"book\".\"local_path\", \"book\".\"hash\", \"book\".\"minio_key\", \"book\".\"created_at\", \"book\".\"updated_at\", \"book_chapters\".\"data\" as \"chapters\" from \"book\" \"book\" left join lateral (select coalesce(json_agg(json_build_array(\"book_chapters\".\"id\", \"book_chapters\".\"href\", \"book_chapters\".\"title\", \"book_chapters\".\"book_id\")), '[]'::json) as \"data\" from \"chapter\" \"book_chapters\" where \"book_chapters\".\"book_id\" = \"book\".\"id\") \"book_chapters\" on true order by \"book\".\"created_at\" desc","params":[]},"msg":"Failed to fetch books list"}
+Error ensuring bucket exists: 239 |         }, !keepOpen)
+240 |           handleResponse();
+241 |         onEnd();
+242 |       }), !softFail)
+243 |         this[kFetchRequest].catch((err) => {
+244 |             err = new Error("ECONNREFUSED"), err.code = "ECONNREFUSED";
+                        ^
+error: ECONNREFUSED
+ code: "ECONNREFUSED"
+
+      at <anonymous> (node:_http_client:244:19)
+
+AI Translation Error: 4565 | 	joinsNotNullableMap;
+4566 | 	async queryWithCache(e, t, n) {
+4567 | 		if (void 0 === this.cache || Oe(this.cache, ys) || void 0 === this.queryMetadata) try {
+4568 | 			return await n();
+4569 | 		} catch (r) {
+4570 | 			throw new oi(e, t, r);
+                ^
+error: Failed query: select "id", "openai_key", "openai_base_url", "openai_keys", "openai_model", "litellm_base_url", "litellm_keys", "litellm_model", "openrouter_key", "openrouter_keys", "openrouter_model", "mistral_key", "mistral_keys", "mistral_model", "gemini_keys", "default_model", "max_retries", "base_delay", "max_delay", "concurrency_limit" from "settings" "settings" where "settings"."id" = $1 limit $2
+params: default,1
+  query: "select \"id\", \"openai_key\", \"openai_base_url\", \"openai_keys\", \"openai_model\", \"litellm_base_url\", \"litellm_keys\", \"litellm_model\", \"openrouter_key\", \"openrouter_keys\", \"openrouter_model\", \"mistral_key\", \"mistral_keys\", \"mistral_model\", \"gemini_keys\", \"default_model\", \"max_retries\", \"base_delay\", \"max_delay\", \"concurrency_limit\" from \"settings\" \"settings\" where \"settings\".\"id\" = $1 limit $2",
+ params: [
+  "default", 1
+],
+
+      at queryWithCache (/app/build/server/chunks/db-fibd0nt5.js:4570:10)
+
+error: Failed to connect
+ syscall: "connect",
+   errno: 103,
+    code: "ECONNREFUSED"
+
+
+AI Translation Error: 4565 | 	joinsNotNullableMap;
+4566 | 	async queryWithCache(e, t, n) {
+4567 | 		if (void 0 === this.cache || Oe(this.cache, ys) || void 0 === this.queryMetadata) try {
+4568 | 			return await n();
+4569 | 		} catch (r) {
+4570 | 			throw new oi(e, t, r);
+                ^
+error: Failed query: select "id", "openai_key", "openai_base_url", "openai_keys", "openai_model", "litellm_base_url", "litellm_keys", "litellm_model", "openrouter_key", "openrouter_keys", "openrouter_model", "mistral_key", "mistral_keys", "mistral_model", "gemini_keys", "default_model", "max_retries", "base_delay", "max_delay", "concurrency_limit" from "settings" "settings" where "settings"."id" = $1 limit $2
+params: default,1
+  query: "select \"id\", \"openai_key\", \"openai_base_url\", \"openai_keys\", \"openai_model\", \"litellm_base_url\", \"litellm_keys\", \"litellm_model\", \"openrouter_key\", \"openrouter_keys\", \"openrouter_model\", \"mistral_key\", \"mistral_keys\", \"mistral_model\", \"gemini_keys\", \"default_model\", \"max_retries\", \"base_delay\", \"max_delay\", \"concurrency_limit\" from \"settings\" \"settings\" where \"settings\".\"id\" = $1 limit $2",
+ params: [
+  "default", 1
+],
+
+      at queryWithCache (/app/build/server/chunks/db-fibd0nt5.js:4570:10)
+
+error: Failed to connect
+ syscall: "connect",
+   errno: 103,
+    code: "ECONNREFUSED"
+
+
+Received SIGTERM, closing database connections...
+Stopping server...
+Database connections closed successfully.

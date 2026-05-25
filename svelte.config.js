@@ -1,3 +1,4 @@
+import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 import adapter from 'svelte-adapter-bun';
 
 const defaultTrustedOrigins = [
@@ -16,6 +17,7 @@ const envOrigins = (process.env.CSRF_TRUSTED_ORIGINS || '')
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
+	preprocess: vitePreprocess(),
 	compilerOptions: {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},

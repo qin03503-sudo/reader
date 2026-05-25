@@ -18,7 +18,7 @@ type ProtectedBlock = {
 
 function splitHtmlIntoTranslatableParts(html: string, maxPartLength = 2500): string[] {
     const blockRegex = /(<(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)[^>]*>[\s\S]*?<\/(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)>)/gi;
-    const blocks = html.match(blockRegex);
+    const blocks = html.split(blockRegex).filter(t => t.trim() !== '');
 
     if (!blocks || blocks.length === 0) {
         return [html];
@@ -163,19 +163,11 @@ export async function POST({ request }) {
         };
 
         const executeWithConcurrency = async () => {
-            const promises: Promise<void>[] = [];
-            for (let i = 0; i < parts.length; i++) {
-                if (activePromises >= concurrencyLimit) {
-                    await Promise.race(promises);
-                }
-                activePromises++;
-                const p = processPart(i).finally(() => {
-                    activePromises--;
-                    promises.splice(promises.indexOf(p), 1);
-                });
-                promises.push(p);
+            for (let i = 0; i < parts.length; i += concurrencyLimit) {
+                const chunk = parts.slice(i, i + concurrencyLimit);
+                const chunkPromises = chunk.map((_, indexInChunk) => processPart(i + indexInChunk));
+                await Promise.all(chunkPromises);
             }
-            await Promise.all(promises);
         };
 
         await executeWithConcurrency();

@@ -53,23 +53,7 @@ test.describe("App E2E Tests", () => {
                     })
                 });
             } else if (route.request().method() === "GET") {
-                await route.fulfill({
-                    status: 200,
-                    contentType: "application/json",
-                    body: JSON.stringify({
-                        books: [
-                            {
-                                id: "123",
-                                title: "Test Book",
-                                author: "Test Author",
-                                coverUrl: null,
-                                chapters: [
-                                    { id: "c1", href: "chapter1.xhtml", title: "Chapter 1" }
-                                ]
-                            }
-                        ]
-                    })
-                });
+                await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ books: [] }) });
             } else {
                 await route.continue();
             }
@@ -85,7 +69,42 @@ test.describe("App E2E Tests", () => {
             })
         });
 
+                await page.route("**/*__data.json*", async route => {
+            await route.fulfill({
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify({
+                    type: "data",
+                    nodes: [
+                        null,
+                        {
+                            type: "data",
+                            data: [
+                                { defaultModel: 1, settings: 2, books: 3 },
+                                "gemini-2.5-flash",
+                                {},
+                                [4],
+                                { id: 5, title: 6, author: 7, coverUrl: 8, chapters: 9 },
+                                "123",
+                                "Test Book",
+                                "Test Author",
+                                null,
+                                [10],
+                                { id: 11, href: 12, title: 13 },
+                                "c1",
+                                "chapter1.xhtml",
+                                "Chapter 1"
+                            ],
+                            uses: {}
+                        }
+                    ]
+                })
+            });
+        });
+
         await page.goto("/");
+        // Wait for SvelteKit hydration
+        await page.waitForLoadState('networkidle');
 
         // Settings tests
         await page.locator("button", { has: page.locator("svg.lucide-settings") }).click();

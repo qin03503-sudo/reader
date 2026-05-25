@@ -1,54 +1,28 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import Library from '$lib/components/Library.svelte';
   import Reader from '$lib/components/Reader.svelte';
   import SettingsModal from '$lib/components/SettingsModal.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import { showToast } from '$lib/stores/toast';
+  import { invalidateAll } from '$app/navigation';
+
+  let { data } = $props();
 
   let book: any = $state(null);
-  let loading = $state(true);
-  let globalModel = $state('gemini-2.5-flash');
   let showSettings = $state(false);
 
-  onMount(async () => {
-    try {
-      const res = await fetch('/api/settings');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.defaultModel) {
-            globalModel = data.defaultModel;
-        }
-      }
-    } catch (e) {
-      showToast('error', 'Failed to load settings');
-    } finally {
-      loading = false;
-    }
-  });
+  let globalModel = $derived(data.defaultModel);
 
-  function handleSettingsClose() {
+  async function handleSettingsClose() {
     showSettings = false;
-    // Re-fetch default model in case it changed
-    fetch('/api/settings')
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.defaultModel) {
-            globalModel = data.defaultModel;
-        }
-      })
-      .catch(() => showToast('error', 'Failed to reload settings'));
+    await invalidateAll();
   }
-
 </script>
 
-{#if loading}
-  <div class="flex h-screen items-center justify-center bg-[#fcfaf7]">
-    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a1a1a]"></div>
-  </div>
-{:else if !book}
+{#if !book}
   <Library 
     {globalModel} 
+    books={data.books}
     on:openBook={(e) => book = e.detail} 
     on:openSettings={() => showSettings = true}
   />
@@ -56,13 +30,17 @@
   <Reader 
     {book} 
     {globalModel} 
+    settings={data.settings}
     on:close={() => book = null} 
   />
 {/if}
 
-<SettingsModal 
-  show={showSettings} 
-  on:close={handleSettingsClose}
-/>
+{#if showSettings}
+  <SettingsModal
+    show={true}
+    initialSettings={data.settings}
+    on:close={handleSettingsClose}
+  />
+{/if}
 
 <Toast />

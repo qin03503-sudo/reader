@@ -1,6 +1,6 @@
 <script lang="ts">
   import { X, Settings, Sliders, Cpu, Zap, Globe, Sparkles } from '@lucide/svelte';
-  import { createEventDispatcher, onMount } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import { showToast } from '$lib/stores/toast';
   import GeneralSettings from './settings/GeneralSettings.svelte';
   import GeminiSettings from './settings/GeminiSettings.svelte';
@@ -11,9 +11,9 @@
 
   const dispatch = createEventDispatcher();
 
-  let { show = false }: { show?: boolean } = $props();
+  let { show = false, initialSettings = {} }: { show?: boolean, initialSettings?: any } = $props();
 
-  let settings = $state({
+    const getInitial = () => ({
     openaiKey: '',
     openaiBaseUrl: '',
     openaiKeys: [] as string[],
@@ -32,8 +32,10 @@
     maxRetries: 3,
     baseDelay: 2000,
     maxDelay: 30000,
-    concurrencyLimit: 5
+    concurrencyLimit: 5,
+    ...initialSettings
   });
+  let settings = $state(getInitial());
 
   let saving = $state(false);
   let activeTab = $state('general');
@@ -46,33 +48,7 @@
       mistral: { loading: false }
   });
 
-  onMount(async () => {
-    try {
-      const res = await fetch('/api/settings');
-      const data = await res.json();
-      if (data) {
-        settings = { ...settings, ...data };
-      }
-      if (!settings.openaiKeys) settings.openaiKeys = [];
-      if (!settings.litellmKeys) settings.litellmKeys = [];
-      if (!settings.litellmBaseUrl) settings.litellmBaseUrl = '';
-      if (!settings.openrouterKey) settings.openrouterKey = '';
-      if (!settings.openrouterKeys) settings.openrouterKeys = [];
-      if (!settings.openaiBaseUrl) settings.openaiBaseUrl = '';
-      if (!settings.openaiModel) settings.openaiModel = 'deepseek-chat';
-      if (!settings.litellmModel) settings.litellmModel = 'deepseek-chat';
-      if (!settings.openrouterModel) settings.openrouterModel = 'deepseek/deepseek-chat';
-      if (!settings.mistralKey) settings.mistralKey = '';
-      if (!settings.mistralKeys) settings.mistralKeys = [];
-      if (!settings.geminiKeys) settings.geminiKeys = [];
-      if (!settings.mistralModel) settings.mistralModel = 'mistral-large-latest';
-      if (!settings.defaultModel) settings.defaultModel = 'gemini-2.5-flash';
-      if (settings.maxRetries === undefined) settings.maxRetries = 3;
-      if (settings.baseDelay === undefined) settings.baseDelay = 2000;
-      if (settings.maxDelay === undefined) settings.maxDelay = 30000;
-      if (settings.concurrencyLimit === undefined) settings.concurrencyLimit = 5;
-    } catch(e) {}
-  });
+
 
   async function handleSave() {
     saving = true;

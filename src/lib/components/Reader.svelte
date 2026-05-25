@@ -79,6 +79,7 @@
     {models}
     bind:selectedModel={readerState.selectedModel}
     bind:showModelSettings
+    bind:currentChapterIndex={readerState.currentChapterIndex}
     onClose={() => dispatch('close')}
   />
 

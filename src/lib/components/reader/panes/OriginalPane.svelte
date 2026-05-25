@@ -3,6 +3,7 @@
     loading,
     error,
     originalRenderParts,
+    currentPageIndex,
     container = $bindable(),
     handleMouseOver,
     handleMouseOut,
@@ -11,11 +12,15 @@
     loading: boolean;
     error: string;
     originalRenderParts: string[];
+    currentPageIndex: number;
     container: HTMLDivElement | null;
     handleMouseOver: (e: Event) => void;
     handleMouseOut: (e: Event) => void;
     handleClick: (e: Event) => void;
   } = $props();
+  $effect(() => {
+    if (currentPageIndex >= 0 && container) container.scrollTop = 0;
+  });
 </script>
 
 <div class="w-1/2 overflow-y-auto relative p-8">
@@ -36,9 +41,9 @@
       onblur={handleMouseOut}
       class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto"
     >
-      {#each originalRenderParts as part}
-        {@html part}
-      {/each}
+      {#if originalRenderParts[currentPageIndex] !== undefined}
+        {@html originalRenderParts[currentPageIndex]}
+      {/if}
     </div>
   {/if}
 </div>

@@ -1,6 +1,9 @@
 export function createReaderState() {
   let book = $state<any>(null);
   let globalModel = $state('gemini-2.5-flash');
+  let currentPageIndex = $state(0);
+  let targetPageIndex = $state(0);
+  let currentTranslationId = $state(0);
   let currentChapterIndex = $state(0);
   let originalRenderParts = $state<string[]>([]);
   let translatedRenderParts = $state<string[]>([]);
@@ -17,8 +20,28 @@ export function createReaderState() {
   const prefetchedTranslations = new Map<number, { originalParts: string[]; translatedParts: string[] }>();
 
   let chapter = $derived(book?.chapters?.[currentChapterIndex]);
+  let totalPages = $derived(originalRenderParts.length);
 
-  function splitHtmlIntoClientParts(html: string, maxPartLength = 600): string[] {
+
+  function nextPage() {
+    if (currentPageIndex < totalPages - 1) {
+      currentPageIndex++;
+    } else if (book?.chapters && currentChapterIndex < book.chapters.length - 1) {
+      currentChapterIndex++;
+      currentPageIndex = 0;
+    }
+  }
+
+  function previousPage() {
+    if (currentPageIndex > 0) {
+      currentPageIndex--;
+    } else if (currentChapterIndex > 0) {
+      currentChapterIndex--;
+      targetPageIndex = -1;
+    }
+  }
+
+  function splitHtmlIntoClientParts(html: string, maxPartLength = 1200): string[] {
     const blockRegex = /(<(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)[^>]*>[\s\S]*?<\/(?:p|div|section|article|blockquote|h[1-6]|li|pre|code|table|figure)>)/gi;
     const blocks = html.match(blockRegex);
     if (!blocks || blocks.length === 0) return [html];
@@ -37,6 +60,8 @@ export function createReaderState() {
   }
 
   async function translateChapter(parts: string[]) {
+    currentTranslationId++;
+    const myTranslationId = currentTranslationId;
     translationLoading = true;
     translateProgressText = 'Preparing translation…';
     translationError = '';
@@ -65,6 +90,7 @@ export function createReaderState() {
         }
 
         // Prefix sync ids to avoid collisions across parts
+        if (myTranslationId !== currentTranslationId) return;
         const prefixIds = (html: string) => html.replace(/data-sync-id="([^"]+)"/g, `data-sync-id="${i}_$1"`);
         originalRenderParts[i] = prefixIds(data.originalHtml);
         translatedRenderParts.push(prefixIds(data.translatedHtml));
@@ -134,7 +160,13 @@ export function createReaderState() {
       const res = await fetch(`/api/chapter?bookId=${book.id}&href=${encodeURIComponent(chapter.href)}`);
       const data = await res.json();
       if (res.ok) {
-        originalRenderParts = splitHtmlIntoClientParts(data.html, 800);
+        originalRenderParts = splitHtmlIntoClientParts(data.html, 1200);
+        if (targetPageIndex === -1) {
+          currentPageIndex = Math.max(0, originalRenderParts.length - 1);
+          targetPageIndex = 0;
+        } else {
+          currentPageIndex = 0;
+        }
         const prefetched = prefetchedTranslations.get(currentChapterIndex);
         if (prefetched) {
           originalRenderParts = [...prefetched.originalParts];
@@ -161,6 +193,10 @@ export function createReaderState() {
     get globalModel() { return globalModel; },
     set globalModel(val) { globalModel = val; },
     get currentChapterIndex() { return currentChapterIndex; },
+    get currentPageIndex() { return currentPageIndex; },
+    get totalPages() { return totalPages; },
+    nextPage,
+    previousPage,
     set currentChapterIndex(val) { currentChapterIndex = val; },
     get originalRenderParts() { return originalRenderParts; },
     get translatedRenderParts() { return translatedRenderParts; },

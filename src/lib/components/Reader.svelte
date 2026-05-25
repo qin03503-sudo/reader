@@ -88,6 +88,7 @@
       loading={readerState.loading}
       error={readerState.error}
       originalRenderParts={readerState.originalRenderParts}
+      currentPageIndex={readerState.currentPageIndex}
       bind:container={syncState.originalContainer}
       handleMouseOver={syncState.handleMouseOver}
       handleMouseOut={syncState.handleMouseOut}
@@ -104,6 +105,7 @@
       translationError={readerState.translationError}
       originalRenderParts={readerState.originalRenderParts}
       translatedRenderParts={readerState.translatedRenderParts}
+      currentPageIndex={readerState.currentPageIndex}
       totalTranslationParts={readerState.totalTranslationParts}
       completedTranslationParts={readerState.completedTranslationParts}
       translateProgressText={readerState.translateProgressText}
@@ -126,5 +128,9 @@
   <ReaderFooter
     bind:currentChapterIndex={readerState.currentChapterIndex}
     totalChapters={book?.chapters?.length || 1}
+    currentPageIndex={readerState.currentPageIndex}
+    totalPages={readerState.totalPages}
+    nextPage={readerState.nextPage}
+    previousPage={readerState.previousPage}
   />
 </div>

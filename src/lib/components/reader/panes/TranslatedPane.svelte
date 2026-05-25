@@ -5,6 +5,7 @@
     translationError,
     originalRenderParts,
     translatedRenderParts,
+    currentPageIndex,
     totalTranslationParts,
     completedTranslationParts,
     translateProgressText,
@@ -18,6 +19,7 @@
     translationError: string;
     originalRenderParts: string[];
     translatedRenderParts: string[];
+    currentPageIndex: number;
     totalTranslationParts: number;
     completedTranslationParts: number;
     translateProgressText: string;
@@ -26,6 +28,9 @@
     handleMouseOut: (e: Event) => void;
     handleClick: (e: Event) => void;
   } = $props();
+  $effect(() => {
+    if (currentPageIndex >= 0 && container) container.scrollTop = 0;
+  });
 </script>
 
 <div class="w-1/2 overflow-y-auto relative p-8 bg-white/50">
@@ -41,14 +46,14 @@
       class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto"
       dir="rtl"
     >
-      {#each translatedRenderParts as part}
-        {@html part}
-      {/each}
+      {#if translatedRenderParts[currentPageIndex] !== undefined}
+        {@html translatedRenderParts[currentPageIndex]}
+      {/if}
     </div>
 
-    {#if translationLoading && completedTranslationParts < totalTranslationParts}
+    {#if translationLoading && translatedRenderParts[currentPageIndex] === undefined}
       <div class="mt-6 space-y-3">
-        {#each Array.from({ length: Math.max(0, Math.min(3, totalTranslationParts - completedTranslationParts)) }) as _}
+        {#each Array.from({ length: 3 }) as _}
           <div class="animate-pulse space-y-2">
             <div class="h-3 bg-gray-200 rounded w-full"></div>
             <div class="h-3 bg-gray-200 rounded w-11/12"></div>

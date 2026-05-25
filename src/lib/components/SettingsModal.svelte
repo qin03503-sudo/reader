@@ -17,8 +17,11 @@
     litellmModel: 'deepseek-chat',
     openrouterKey: '',
     openrouterModel: 'deepseek/deepseek-chat',
+    openrouterKeys: [] as string[],
     mistralKey: '',
     mistralModel: 'mistral-large-latest',
+    mistralKeys: [] as string[],
+    proxyUrl: '',
     defaultModel: 'gemini-2.5-flash',
     maxRetries: 3,
     baseDelay: 2000,
@@ -41,7 +44,9 @@
     { id: 'custom', name: 'Custom OpenAI' },
     { id: 'litellm', name: 'LiteLLM' },
     { id: 'openrouter', name: 'OpenRouter' },
-    { id: 'mistral', name: 'Mistral AI' }
+    { id: 'mistral', name: 'Mistral AI' },
+    { id: 'advanced', name: 'Advanced' },
+        { id: 'advanced', name: 'Advanced' }
   ];
 
   onMount(async () => {
@@ -155,7 +160,30 @@
       const val = (e.target as HTMLInputElement).value;
       settings.litellmKeys[index] = val;
   }
-  function addLitellmKey() {
+
+    function handleOpenrouterKeyChange(index: number, event: Event) {
+        const target = event.target as HTMLInputElement;
+        settings.openrouterKeys[index] = target.value;
+    }
+    function addOpenrouterKey() {
+        settings.openrouterKeys = [...settings.openrouterKeys, ''];
+    }
+    function removeOpenrouterKey(index: number) {
+        settings.openrouterKeys = settings.openrouterKeys.filter((_, i) => i !== index);
+    }
+
+    function handleMistralKeyChange(index: number, event: Event) {
+        const target = event.target as HTMLInputElement;
+        settings.mistralKeys[index] = target.value;
+    }
+    function addMistralKey() {
+        settings.mistralKeys = [...settings.mistralKeys, ''];
+    }
+    function removeMistralKey(index: number) {
+        settings.mistralKeys = settings.mistralKeys.filter((_, i) => i !== index);
+    }
+
+    function addLitellmKey() {
       settings.litellmKeys = [...settings.litellmKeys, ''];
   }
   function removeLitellmKey(index: number) {
@@ -547,16 +575,82 @@
                   </div>
 
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="openrouterKey">
-                      API Key
+                      <span class="block text-sm font-medium text-gray-700 mb-1.5">
+                        API Keys (round-robin)
+                      </span>
+                      {#each settings.openrouterKeys as key, i}
+                          <div class="flex gap-2 mb-2">
+                              <input
+                                  type="password"
+                                  value={key}
+                                  oninput={(e) => handleOpenrouterKeyChange(i, e)}
+                                  placeholder="sk-or-v1-..."
+                                  class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                              />
+                              <button type="button" onclick={() => removeOpenrouterKey(i)} class="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-[10px] transition-colors">
+                                  <X class="w-4 h-4" />
+                              </button>
+                          </div>
+                      {/each}
+                      <button type="button" onclick={addOpenrouterKey} class="text-[#2563eb] hover:text-[#1d4ed8] text-sm font-medium mt-1 inline-block">
+                          + Add another key
+                      </button>
+                  </div>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Advanced Tab -->
+            {#if activeTab === 'advanced'}
+              <div class="space-y-4">
+                <div class="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 class="font-semibold text-lg text-gray-900 mb-1">Advanced Settings</h3>
+                    <p class="text-sm text-gray-500">Global configurations for proxy and other features.</p>
+                  </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="proxyUrl">
+                      Proxy URL
                     </label>
                     <input
-                      id="openrouterKey"
-                      type="password"
-                      bind:value={settings.openrouterKey}
-                      placeholder="sk-or-v1-..."
+                      id="proxyUrl"
+                      type="text"
+                      bind:value={settings.proxyUrl}
+                      placeholder="e.g. socks5://127.0.0.1:1080 or http://127.0.0.1:8080"
                       class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
                     />
+                    <p class="mt-1 text-xs text-gray-500">Set a global proxy for all external AI API requests.</p>
+                  </div>
+                </div>
+              </div>
+            {/if}
+
+            <!-- Advanced Tab -->
+            {#if activeTab === 'advanced'}
+              <div class="space-y-4">
+                <div class="flex justify-between items-start mb-6">
+                  <div>
+                    <h3 class="font-semibold text-lg text-gray-900 mb-1">Advanced Settings</h3>
+                    <p class="text-sm text-gray-500">Global configurations for proxy and other features.</p>
+                  </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm space-y-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="proxyUrl">
+                      Proxy URL
+                    </label>
+                    <input
+                      id="proxyUrl"
+                      type="text"
+                      bind:value={settings.proxyUrl}
+                      placeholder="e.g. socks5://127.0.0.1:1080 or http://127.0.0.1:8080"
+                      class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                    />
+                    <p class="mt-1 text-xs text-gray-500">Set a global proxy for all external AI API requests.</p>
                   </div>
                 </div>
               </div>
@@ -597,16 +691,26 @@
 
                 <div class="bg-white p-5 rounded-[10px] border border-[#e5e5e5] shadow-sm space-y-4">
                   <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1.5" for="mistralKey">
-                      API Key
-                    </label>
-                    <input
-                      id="mistralKey"
-                      type="password"
-                      bind:value={settings.mistralKey}
-                      placeholder="sk-..."
-                      class="w-full border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
-                    />
+                      <span class="block text-sm font-medium text-gray-700 mb-1.5">
+                        API Keys (round-robin)
+                      </span>
+                      {#each settings.mistralKeys as key, i}
+                          <div class="flex gap-2 mb-2">
+                              <input
+                                  type="password"
+                                  value={key}
+                                  oninput={(e) => handleMistralKeyChange(i, e)}
+                                  placeholder="sk-..."
+                                  class="flex-1 border border-gray-300 rounded-[10px] p-2.5 text-sm focus:ring-[#2563eb] focus:border-[#2563eb] outline-none"
+                              />
+                              <button type="button" onclick={() => removeMistralKey(i)} class="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-[10px] transition-colors">
+                                  <X class="w-4 h-4" />
+                              </button>
+                          </div>
+                      {/each}
+                      <button type="button" onclick={addMistralKey} class="text-[#2563eb] hover:text-[#1d4ed8] text-sm font-medium mt-1 inline-block">
+                          + Add another key
+                      </button>
                   </div>
 
                   <div>

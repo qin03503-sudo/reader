@@ -1,3 +1,6 @@
+import { SocksProxyAgent } from 'socks-proxy-agent';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import nodeFetch from 'node-fetch';
 import { GoogleGenAI } from '@google/genai';
 
 export async function generateContentWithFallback(
@@ -10,6 +13,15 @@ export async function generateContentWithFallback(
     jsonSchemaProperties?: any,
     jsonSchemaRequired?: string[]
 ) {
+    let proxyAgent: any = undefined;
+    if (currentSettings?.proxyUrl) {
+        if (currentSettings.proxyUrl.startsWith('socks')) {
+            proxyAgent = new SocksProxyAgent(currentSettings.proxyUrl);
+        } else if (currentSettings.proxyUrl.startsWith('http')) {
+            proxyAgent = new HttpsProxyAgent(currentSettings.proxyUrl);
+        }
+    }
+
     const maxRetries = currentSettings?.maxRetries ?? 3;
     const baseDelay = currentSettings?.baseDelay ?? 2000;
     const maxDelay = currentSettings?.maxDelay ?? 30000;
@@ -53,14 +65,18 @@ export async function generateContentWithFallback(
 
         while (retries > 0) {
             try {
-                const response = await fetch(url, {
+                                const fetchOptions: any = {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${key}`
                     },
                     body: JSON.stringify(payload)
-                });
+                };
+                if (proxyAgent) {
+                    fetchOptions.agent = proxyAgent;
+                }
+                const response = await (proxyAgent ? nodeFetch(url, fetchOptions) as any : fetch(url, fetchOptions));
 
                 if (!response.ok) {
                     const errText = await response.text();
@@ -137,30 +153,42 @@ export async function generateContentWithFallback(
     }
 
     if (model === 'openrouter' || model?.startsWith('openrouter:')) {
-        if (!currentSettings || !currentSettings.openrouterKey) {
-            throw new Error('OpenRouter settings are missing.');
-        }
+        const keys = currentSettings?.openrouterKeys && currentSettings.openrouterKeys.length > 0 ? currentSettings.openrouterKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings?.openrouterKey ? [currentSettings.openrouterKey] : []);
+        if (keys.length === 0 || !keys[0]) throw new Error('OpenRouter settings are missing.');
+        const key = keys[Math.floor(Math.random() * keys.length)];
         const actualModel = (model === 'openrouter' ? '' : model.replace('openrouter:', '')) || currentSettings.openrouterModel || 'deepseek/deepseek-chat';
         openaiStylePayload.model = actualModel;
-        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', currentSettings.openrouterKey, openaiStylePayload);
+        return fetchOpenAIFormat('https://openrouter.ai/api/v1/chat/completions', key, openaiStylePayload);
     }
 
     if (model === 'mistral' || model?.startsWith('mistral:')) {
-        if (!currentSettings || !currentSettings.mistralKey) {
-            throw new Error('Mistral settings are missing.');
-        }
+        const keys = currentSettings?.mistralKeys && currentSettings.mistralKeys.length > 0 ? currentSettings.mistralKeys.filter((k: string) => k && k.trim() !== '') : (currentSettings?.mistralKey ? [currentSettings.mistralKey] : []);
+        if (keys.length === 0 || !keys[0]) throw new Error('Mistral settings are missing.');
+        const key = keys[Math.floor(Math.random() * keys.length)];
         const actualModel = (model === 'mistral' ? '' : model.replace('mistral:', '')) || currentSettings.mistralModel || 'mistral-large-latest';
         openaiStylePayload.model = actualModel;
-        return fetchOpenAIFormat('https://api.mistral.ai/v1/chat/completions', currentSettings.mistralKey, openaiStylePayload);
+        return fetchOpenAIFormat('https://api.mistral.ai/v1/chat/completions', key, openaiStylePayload);
     }
 
     // Default to Gemini
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    if(!apiKey) {
-        throw new Error('GEMINI_API_KEY environment variable is not set.');
+    const keysRaw = process.env.GEMINI_API_KEY || '';
+    const geminiKeys = keysRaw.split(',').map((k: string) => k.trim()).filter((k: string) => k !== '');
+    if(geminiKeys.length === 0) {
+        throw new Error('GEMINI_API_KEY environment variable is not set. Set it or provide a comma-separated list of keys.');
     }
+    const apiKey = geminiKeys[Math.floor(Math.random() * geminiKeys.length)];
 
-    const ai = new GoogleGenAI({ apiKey });
+
+    const aiConfig: any = { apiKey };
+    if (proxyAgent) {
+        aiConfig.httpOptions = {
+            fetch: async (url: string | URL | Request, init?: RequestInit) => {
+                // @ts-ignore
+                return nodeFetch(url, { ...init, agent: proxyAgent });
+            }
+        };
+    }
+    const ai = new GoogleGenAI(aiConfig);
 
     let retries = maxRetries;
     let delay = baseDelay;

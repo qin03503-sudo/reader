@@ -39,14 +39,17 @@ export const settings = pgTable('settings', {
   litellmKeys: text('litellm_keys').array().default([]).notNull(),
   litellmModel: text('litellm_model').default('deepseek-chat'),
   openrouterKey: text('openrouter_key'),
+  openrouterKeys: text('openrouter_keys').array().default([]).notNull(),
   openrouterModel: text('openrouter_model').default('deepseek/deepseek-chat'),
   mistralKey: text('mistral_key'),
+  mistralKeys: text('mistral_keys').array().default([]).notNull(),
   mistralModel: text('mistral_model').default('mistral-large-latest'),
   defaultModel: text('default_model').default('gemini-2.5-flash'),
   maxRetries: integer('max_retries').default(3).notNull(),
   baseDelay: integer('base_delay').default(2000).notNull(),
   maxDelay: integer('max_delay').default(30000).notNull(),
   concurrencyLimit: integer('concurrency_limit').default(5).notNull(),
+  proxyUrl: text('proxy_url'),
 });
 
 // Relations

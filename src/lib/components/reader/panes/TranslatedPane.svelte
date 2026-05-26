@@ -1,4 +1,7 @@
 <script lang="ts">
+  import ScrollablePane from './ScrollablePane.svelte';
+  import PaneContent from './PaneContent.svelte';
+
   let {
     loading,
     translationLoading,
@@ -28,28 +31,18 @@
     handleMouseOut: (e: Event) => void;
     handleClick: (e: Event) => void;
   } = $props();
-  $effect(() => {
-    if (currentPageIndex >= 0 && container) container.scrollTop = 0;
-  });
 </script>
 
-<div class="w-1/2 overflow-y-auto relative p-8 bg-white/50">
+<ScrollablePane {currentPageIndex} extraClasses="bg-white/50">
   {#if translatedRenderParts.length > 0}
-    <div
-      role="presentation"
-      bind:this={container}
-      onmouseover={handleMouseOver}
-      onmouseout={handleMouseOut}
-      onclick={handleClick}
-      onfocus={handleMouseOver}
-      onblur={handleMouseOut}
-      class="prose prose-lg prose-slate max-w-none prose-p:leading-relaxed prose-headings:font-semibold mx-auto"
+    <PaneContent
+      htmlContent={translatedRenderParts[currentPageIndex]}
+      bind:container
+      {handleMouseOver}
+      {handleMouseOut}
+      {handleClick}
       dir="rtl"
-    >
-      {#if translatedRenderParts[currentPageIndex] !== undefined}
-        {@html translatedRenderParts[currentPageIndex]}
-      {/if}
-    </div>
+    />
 
     {#if translationLoading && translatedRenderParts[currentPageIndex] === undefined}
       <div class="mt-6 space-y-3">
@@ -76,4 +69,4 @@
        <p>Preparing translation...</p>
     </div>
   {/if}
-</div>
+</ScrollablePane>

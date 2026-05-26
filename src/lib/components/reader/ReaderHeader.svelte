@@ -65,10 +65,11 @@
     <div class="relative">
       <button
         onclick={toggleToc}
-        class="flex items-center gap-2 p-2 text-gray-500 hover:text-gray-900 transition-colors rounded-full hover:bg-gray-100"
+        class="flex items-center gap-2 px-3 py-1.5 text-gray-500 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
         title="Table of Contents"
       >
         <List class="w-5 h-5" />
+        <span class="text-sm font-medium">Contents</span>
       </button>
 
       {#if showToc}

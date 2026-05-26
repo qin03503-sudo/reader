@@ -84,6 +84,7 @@
       handleMouseOver={syncState.handleMouseOver}
       handleMouseOut={syncState.handleMouseOut}
       handleClick={handleInteractionClick}
+      onScroll={(e) => syncState.handleScroll(e, 'original')}
     />
 
     <!-- Divider -->
@@ -104,6 +105,7 @@
       handleMouseOver={syncState.handleMouseOver}
       handleMouseOut={syncState.handleMouseOut}
       handleClick={handleInteractionClick}
+      onScroll={(e) => syncState.handleScroll(e, 'translated')}
     />
   </div>
 
@@ -119,7 +121,7 @@
   <ReaderFooter
     bind:currentChapterIndex={readerState.currentChapterIndex}
     totalChapters={book?.chapters?.length || 1}
-    currentPageIndex={readerState.currentPageIndex}
+    bind:currentPageIndex={readerState.currentPageIndex}
     totalPages={readerState.totalPages}
     nextPage={readerState.nextPage}
     previousPage={readerState.previousPage}

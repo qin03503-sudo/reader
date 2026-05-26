@@ -3,14 +3,16 @@
   let {
     currentPageIndex,
     extraClasses = '',
-    children
+    children,
+    onScroll = undefined
   }: {
     currentPageIndex: number;
     extraClasses?: string;
     children: Snippet;
+    onScroll?: (e: Event) => void;
   } = $props();
 
-  let scrollContainer: HTMLDivElement;
+  let scrollContainer: HTMLDivElement | undefined = $state();
 
   $effect(() => {
     // Reset scroll on page change
@@ -22,6 +24,7 @@
 
 <div
   bind:this={scrollContainer}
+  onscroll={onScroll}
   class="w-1/2 overflow-y-auto relative p-8 {extraClasses}"
 >
   {@render children()}

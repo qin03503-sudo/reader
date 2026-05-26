@@ -15,7 +15,8 @@
     container = $bindable(),
     handleMouseOver,
     handleMouseOut,
-    handleClick
+    handleClick,
+    onScroll
   }: {
     loading: boolean;
     translationLoading: boolean;
@@ -30,10 +31,11 @@
     handleMouseOver: (e: Event) => void;
     handleMouseOut: (e: Event) => void;
     handleClick: (e: Event) => void;
+    onScroll?: (e: Event) => void;
   } = $props();
 </script>
 
-<ScrollablePane {currentPageIndex} extraClasses="bg-white/50">
+<ScrollablePane {currentPageIndex} extraClasses="bg-white/50" {onScroll}>
   {#if translatedRenderParts.length > 0}
     <PaneContent
       htmlContent={translatedRenderParts[currentPageIndex]}

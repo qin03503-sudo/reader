@@ -4,10 +4,8 @@ import { book } from '$lib/server/schema';
 import { eq } from 'drizzle-orm';
 import { getChapterHtml } from '$lib/server/epub';
 import JSZip from 'jszip';
-import { minioClient, bucketName } from '$lib/server/minio';
 import { logger } from '$lib/server/logger';
-
-const UPLOADS_DIR = './uploads';
+import { StorageService } from '$lib/server/services/storage';
 
 export async function GET({ url }) {
     const bookId = url.searchParams.get('bookId');
@@ -25,34 +23,11 @@ export async function GET({ url }) {
             return json({ error: 'Book not found' }, { status: 404 });
         }
 
-        let buffer: Uint8Array | null = null;
+        const buffer = await StorageService.getBookFile(foundBook.minioKey, foundBook.localPath);
 
-        // Try MinIO first
-        if (foundBook.minioKey) {
-            try {
-                const stream = await minioClient.getObject(bucketName, foundBook.minioKey);
-                const chunks: any[] = [];
-                for await (const chunk of stream) {
-                    chunks.push(chunk);
-                }
-                buffer = Buffer.concat(chunks);
-                logger.debug({ minioKey: foundBook.minioKey }, 'Successfully fetched book from MinIO');
-            } catch (minioError) {
-                logger.error({ err: minioError, minioKey: foundBook.minioKey }, 'Failed to get book from MinIO');
-            }
-        }
-
-        // Fallback to local storage
         if (!buffer) {
-            const localPath = `${UPLOADS_DIR}/${foundBook.localPath}`;
-            const file = Bun.file(localPath);
-            if (!await file.exists()) {
-                 logger.error({ bookId, localPath, minioKey: foundBook.minioKey }, 'Book file missing both locally and in MinIO');
-                 return json({ error: 'Book file missing both locally and in MinIO' }, { status: 404 });
-            }
-            const arrayBuffer = await file.arrayBuffer();
-            buffer = new Uint8Array(arrayBuffer);
-            logger.debug({ localPath }, 'Fetched book from local storage');
+             logger.error({ bookId, localPath: foundBook.localPath, minioKey: foundBook.minioKey }, 'Book file missing both locally and in MinIO');
+             return json({ error: 'Book file missing both locally and in MinIO' }, { status: 404 });
         }
 
         const zip = new JSZip();

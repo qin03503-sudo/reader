@@ -3,10 +3,8 @@ import { db } from '$lib/server/db';
 import { book, chapter } from '$lib/server/schema';
 import { parseEpub } from '$lib/server/epub';
 import { desc, eq } from 'drizzle-orm';
-import { minioClient, bucketName } from '$lib/server/minio';
 import { logger } from '$lib/server/logger';
-
-const UPLOADS_DIR = './uploads';
+import { StorageService } from '$lib/server/services/storage';
 
 export async function POST({ request }) {
     try {
@@ -42,24 +40,8 @@ export async function POST({ request }) {
         logger.debug({ fileName: file.name }, 'Parsing EPUB');
         const parsed = await parseEpub(buffer);
         
-        // Save file locally using Bun (fallback)
-        const uuid = crypto.randomUUID();
-        const fileName = `${uuid}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-        await Bun.write(`${UPLOADS_DIR}/${fileName}`, buffer);
-        logger.debug({ localPath: fileName }, 'Saved file locally');
-
-        // Upload to MinIO
-        const minioKey = `${hash}.epub`;
-        let minioUploaded = false;
-        try {
-             await minioClient.putObject(bucketName, minioKey, Buffer.from(buffer), buffer.length, {
-                 'Content-Type': 'application/epub+zip'
-             });
-             minioUploaded = true;
-             logger.info({ minioKey, bucketName }, 'Uploaded file to MinIO');
-        } catch(minioError) {
-             logger.error({ err: minioError, minioKey }, 'MinIO upload error');
-        }
+        // Save via StorageService
+        const { minioKey, localPath } = await StorageService.saveBookFile(file, buffer, hash);
 
         // Save to Database
         let newBookWithChapters;
@@ -69,9 +51,9 @@ export async function POST({ request }) {
                 title: parsed.metadata.title,
                 author: parsed.metadata.author,
                 coverUrl: parsed.metadata.coverUrl,
-                localPath: fileName,
+                localPath: localPath,
                 hash: hash,
-                minioKey: minioUploaded ? minioKey : null
+                minioKey: minioKey
             }).returning();
 
             const chaptersToInsert = parsed.chapters.map(ch => ({

@@ -10,7 +10,8 @@
     container = $bindable(),
     handleMouseOver,
     handleMouseOut,
-    handleClick
+    handleClick,
+    onScroll
   }: {
     loading: boolean;
     error: string;
@@ -20,10 +21,11 @@
     handleMouseOver: (e: Event) => void;
     handleMouseOut: (e: Event) => void;
     handleClick: (e: Event) => void;
+    onScroll?: (e: Event) => void;
   } = $props();
 </script>
 
-<ScrollablePane {currentPageIndex}>
+<ScrollablePane {currentPageIndex} {onScroll}>
   {#if loading}
     <div class="flex justify-center items-center h-64">
       <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a1a1a]"></div>

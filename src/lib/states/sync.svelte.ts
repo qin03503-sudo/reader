@@ -8,6 +8,9 @@ export function createSyncState() {
   let analysisData = $state<any>(null);
   let analysisError = $state('');
 
+  // Track who is scrolling to avoid infinite loops
+  let isSyncingScroll = false;
+
   const getSyncPair = (syncId: string): HTMLElement[] => {
     if (!syncId) return [];
     const selector = `[data-sync-id="${syncId}"]`;
@@ -85,6 +88,29 @@ export function createSyncState() {
     }
   };
 
+  const handleScroll = (e: Event, source: 'original' | 'translated') => {
+      if (isSyncingScroll) return;
+
+      const target = e.target as HTMLDivElement;
+      if (!target) return;
+
+      const otherContainerEl = source === 'original'
+          ? target.closest('.flex')?.querySelector(':scope > div:last-child > div.overflow-y-auto') as HTMLDivElement
+          : target.closest('.flex')?.querySelector(':scope > div:first-child > div.overflow-y-auto') as HTMLDivElement;
+
+      if (!otherContainerEl) return;
+
+      const percentage = target.scrollTop / (target.scrollHeight - target.clientHeight);
+
+      isSyncingScroll = true;
+      otherContainerEl.scrollTop = percentage * (otherContainerEl.scrollHeight - otherContainerEl.clientHeight);
+
+      // Debounce resetting the flag
+      setTimeout(() => {
+          isSyncingScroll = false;
+      }, 50);
+  };
+
   return {
     get originalContainer() { return originalContainer; },
     set originalContainer(val) { originalContainer = val; },
@@ -97,6 +123,7 @@ export function createSyncState() {
     get analysisError() { return analysisError; },
     handleMouseOver,
     handleMouseOut,
-    handleClick
+    handleClick,
+    handleScroll
   };
 }

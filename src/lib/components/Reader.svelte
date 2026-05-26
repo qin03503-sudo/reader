@@ -52,6 +52,43 @@
     }
   });
 
+
+  function handleKeydown(e: KeyboardEvent) {
+    // Ignore keypresses if focus is in an input or textarea
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'd':
+        e.preventDefault();
+        readerState.nextPage();
+        break;
+      case 'ArrowLeft':
+      case 'a':
+        e.preventDefault();
+        readerState.previousPage();
+        break;
+      case 'ArrowUp':
+      case 'w':
+        e.preventDefault();
+        if (syncState.originalContainer) {
+          const scrollContainer = syncState.originalContainer.closest('.overflow-y-auto') as HTMLElement;
+          if (scrollContainer) scrollContainer.scrollBy({ top: -50, behavior: 'smooth' });
+        }
+        break;
+      case 'ArrowDown':
+      case 's':
+        e.preventDefault();
+        if (syncState.originalContainer) {
+          const scrollContainer = syncState.originalContainer.closest('.overflow-y-auto') as HTMLElement;
+          if (scrollContainer) scrollContainer.scrollBy({ top: 50, behavior: 'smooth' });
+        }
+        break;
+    }
+  }
+
   function handleInteractionClick(e: Event) {
     syncState.handleClick(e, {
       targetLanguage: readerState.targetLanguage,
@@ -61,6 +98,8 @@
     });
   }
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <div class="h-screen flex flex-col bg-[#fcfaf7]">
   <ReaderHeader

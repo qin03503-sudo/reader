@@ -86,6 +86,14 @@
           if (scrollContainer) scrollContainer.scrollBy({ top: 50, behavior: 'smooth' });
         }
         break;
+      case 'Home':
+        e.preventDefault();
+        readerState.currentPageIndex = 0;
+        break;
+      case 'End':
+        e.preventDefault();
+        readerState.currentPageIndex = Math.max(0, readerState.totalPages - 1);
+        break;
     }
   }
 

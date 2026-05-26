@@ -194,6 +194,7 @@ export function createReaderState() {
     set globalModel(val) { globalModel = val; },
     get currentChapterIndex() { return currentChapterIndex; },
     get currentPageIndex() { return currentPageIndex; },
+    set currentPageIndex(val) { currentPageIndex = val; },
     get totalPages() { return totalPages; },
     nextPage,
     previousPage,

@@ -94,7 +94,7 @@ import { invalidateAll } from '$app/navigation';
     </header>
 
     {#if books.length === 0}
-      <div class="text-center py-20 bg-white rounded-2xl border border-[#e5e5e5] shadow-sm">
+      <div class="text-center py-20 bg-white rounded-2xl border border-2 border-[#e5e5e5] shadow-sm cursor-pointer hover:bg-gray-50 transition-colors border-dashed hover:border-blue-400" onclick={() => fileInput.click()} onkeydown={(e) => e.key === 'Enter' && fileInput.click()} tabindex="0" role="button" aria-label="Upload an EPUB file">
         <BookOpen class="w-16 h-16 text-gray-300 mx-auto mb-4" />
         <h2 class="text-xl font-semibold text-gray-900 mb-2">Your library is empty</h2>
         <p class="text-gray-500 mb-6">Upload an EPUB file to start reading</p>
